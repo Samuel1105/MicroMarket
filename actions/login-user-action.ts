@@ -10,7 +10,7 @@ export async function handleLoginAction(formData: FormData) {
     const password = formData.get("password")?.toString() ?? "";
 
     // Validación con Zod
-    const result = userLoginSchema.safeParse({ correo: email, contraseña: password });
+    const result = userLoginSchema.safeParse({ correo: email, contraseña:password });
 
     if (!result.success) {
         return { success: false, errors: result.error.issues };

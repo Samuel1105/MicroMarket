@@ -1,19 +1,19 @@
 "use server";
-
 import { prisma } from "@/src/lib/prisma";
-import { userFormSchema } from "@/src/schema";
+import { userCreateSchema } from "@/src/schema";
 import { hashPassword } from "@/src/utils/auth";
+import { getBoliviaTime } from "@/src/utils/date";
 
 export async function createUserAction(data: unknown) {
     try {
-        const result = userFormSchema.safeParse(data);
+        const result = userCreateSchema.safeParse(data);
         
         if (!result.success) {
             return {
                 errors: result.error.issues
             };
         }
-
+        
         // Verificar si el usuario ya existe
         const existingUser = await prisma.persona.findFirst({
             where: {
@@ -21,16 +21,15 @@ export async function createUserAction(data: unknown) {
                 estado: 1
             }
         });
-
+        
         if (existingUser) {
             return {
                 error: "Ya existe un usuario con este correo electrónico"
             };
         }
-
+        
         // Hashear la contraseña
         const hashedPassword = await hashPassword(result.data.contraseña);
-
         // Crear el nuevo usuario
         await prisma.persona.create({
             data: {
@@ -39,20 +38,18 @@ export async function createUserAction(data: unknown) {
                 apellidoPaterno: result.data.apellidoPaterno,
                 apellidoMaterno: result.data.apellidoMaterno,
                 correo: result.data.correo,
-                contrase_a: hashedPassword, // Guardar la contraseña hasheada
+                contrase_a: hashedPassword,
                 celular: result.data.celular,
                 rol: result.data.rol,
-                estado: 1, // Usuario activo
-                fechaRegistro: new Date(),
-                usuarioIdRegistro: 1 // ID del usuario que crea este registro (ajustar según tu lógica)
+                fechaRegistro: getBoliviaTime(),
+                usuarioIdRegistro: result.data.usuarioIdRegistro
             }
         });
-
+        
         return {
             success: true,
-            message: 'Usuario Creado Exitosamente'
+            message: 'Usuario creado exitosamente'
         };
-
     } catch (error) {
         console.error("Error al crear usuario:", error);
         return {

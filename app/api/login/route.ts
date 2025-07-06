@@ -1,5 +1,6 @@
 // app/api/login/route.ts
 import { prisma } from "@/src/lib/prisma";
+import { checkPassword } from "@/src/utils/auth";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -16,27 +17,42 @@ export async function POST(request: Request) {
 
     const persona = await prisma.persona.findFirst({
       select: {
+        id:true,
         primerNombre: true,
         segundoNombre: true,
         apellidoPaterno: true,
         apellidoMaterno: true,
         celular: true,
-        correo:true,
+        correo: true,
+        contrase_a: true,
         rol: true,
         estado: true
 
       },
       where: {
         correo: correo,
-        contrase_a: contraseña // Nota: revisa si este campo está bien escrito en tu schema
+        estado: 1,
+        //contrase_a: contraseña // Nota: revisa si este campo está bien escrito en tu schema
       }
-      
-    });
 
-    if (persona) {
+    });
+    
+    if (!persona) {
+      return NextResponse.json({
+        message: "Credenciales incorrectas"
+      }, { status: 401 });
+    }
+    
+    // Verificar contraseña
+    const passwordMatch = await checkPassword(contraseña, persona?.contrase_a);
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { contrase_a, ...userData } = persona;
+
+    if (passwordMatch) {
       return NextResponse.json({
         message: "Login exitoso",
-        data: persona
+        data: userData
       }, { status: 200 });
     } else {
       return NextResponse.json({
