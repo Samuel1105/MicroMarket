@@ -19,12 +19,17 @@ export async function ListUser() {
             }
         });
         const response = userListSchema.safeParse(usuarios);
+        //console.log(response);
         if (response.success) {
             return {
                 data: response.data
             };
         }
-
+        else{
+            return {
+                error: response.error.message
+            };
+        }
 
     } catch (error) {
         

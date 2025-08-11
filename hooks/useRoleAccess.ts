@@ -15,7 +15,7 @@ export const useRoleAccess = (allowedRoles: number[]) => {
     }
 
     if (!hasRole(allowedRoles)) {
-      router.push('/dashboard/unauthorized');
+      router.push('/Dashboard/unauthorized');
       return;
     }
   }, [isAuthenticated, hasRole, allowedRoles, router, isLoading]);

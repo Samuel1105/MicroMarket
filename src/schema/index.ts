@@ -6,7 +6,15 @@ export const userSchema = z.object({
     segundoNombre: z.string().nullable().optional(),
     apellidoPaterno: z.string().min(1, "El apellido paterno es requerido"),
     apellidoMaterno: z.string().min(1, "El apellido materno es requerido"),
-    celular: z.number().min(8, "Ingrese un numero valido"),
+    celular: z
+        .number()
+        .int()
+        .refine((num) => {
+            const str = num.toString();
+            return str.length === 8 && /^[67]/.test(str);
+        }, {
+            message: "El número debe tener 8 dígitos y comenzar con 6 o 7",
+        }),
     rol: z.number().min(1, "El rol es requerido"),
     correo: z
         .string()

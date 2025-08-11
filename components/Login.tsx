@@ -13,7 +13,7 @@ import Image from 'next/image';
 import { useRouter } from "next/navigation";
 import { useState, FormEvent } from "react";
 import { toast } from "react-toastify";
-import { handleLoginAction } from "@/actions/login-user-action";
+import { handleLoginAction } from "@/actions/user/login-user-action";
 import { useAuth } from "@/app/context/AuthContext";
 
 export default function Login() {

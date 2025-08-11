@@ -8,8 +8,9 @@ export default function UnauthorizedPage() {
   const getRoleName = (rol: number) => {
     switch (rol) {
       case 1: return 'Administrador';
-      case 2: return 'Supervisor';
-      case 3: return 'Empleado';
+      case 3: return 'Almacen';
+      case 4: return 'Reportes';
+      case 5: return 'Compras';
       default: return 'Usuario';
     }
   };
@@ -29,7 +30,7 @@ export default function UnauthorizedPage() {
           </p>
         )}
         <Link
-          href="/dashboard"
+          href="/Dashboard"
           className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition-colors"
         >
           Volver al Dashboard

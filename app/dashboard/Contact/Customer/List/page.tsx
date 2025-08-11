@@ -1,86 +1,82 @@
-"use client";
-import { ListUser } from "@/actions/user/list-user-action";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
-import Heading from "@/components/ui/Heading";
-import CardMobile from "@/components/user/CardMobile";
-import DeleteUserConfirm from "@/components/user/DeleteUserConfirm"; 
-import { UserList } from "@/src/schema";
-import { getRoleName } from "@/src/utils/rolesName";
-import { Button, Pagination, Table, TableBody, TableCell, TableColumn, TableHeader, TableRow, Chip } from "@heroui/react";
-import { Icon } from "@iconify/react/dist/iconify.js";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+"use client"
+import { ListCustomer } from '@/actions/clientes/list-customer-action'
+import CardMobileCustomer from '@/components/contact/CardMobileCustomer'
+import DeleteCustomerConfirm from '@/components/contact/DeleteCustomerConfirm'
+import { ProtectedRoute } from '@/components/ProtectedRoute'
+import Heading from '@/components/ui/Heading'
+import { CustomerList } from '@/src/schema/SchemaContact'
+import { Button, Link, Pagination, Table, TableBody, TableCell, TableColumn, TableHeader, TableRow } from '@heroui/react'
+import { Icon } from '@iconify/react/dist/iconify.js'
+import { useRouter } from 'next/navigation'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 
-export default function UserListView() {
-    const [users, setUsers] = useState<UserList>([]);
+export default function ContactListView() {
+
+    const [clients, setClients] = useState<CustomerList>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const router = useRouter();
 
-    // Función para cargar usuarios
-    const fetchUsers = useCallback(async () => {
+    const router = useRouter()
+
+    const fetchClients = useCallback(async () => {
         try {
-            setLoading(true);
-            const result = await ListUser();
-            if (result?.data) {
-                setUsers(result.data);
-                setError(null);
+            setLoading(true)
+            const result = await ListCustomer()
+            if (result.data) {
+                setClients(result.data)
+                setError(null)
             } else {
-                setError("Error al cargar usuarios");
+                setError("Error al cargar clientes")
                 console.log("Error:", result?.error);
             }
+
         } catch (error) {
             setError("Error al conectar con el servidor" + error);
         } finally {
-            setLoading(false);
+            setLoading(false)
         }
-    }, []);
+    }, [])
 
-    // Cargar usuarios al montar el componente
     useEffect(() => {
-        fetchUsers();
-    }, [fetchUsers]);
+        fetchClients();
+    }, [fetchClients]);
 
-    // Callback para refrescar después de eliminar
     const handleDeleteSuccess = useCallback(() => {
-        fetchUsers();
-    }, [fetchUsers]);
+        fetchClients();
+    }, [fetchClients]);
 
     const [page, setPage] = useState(1);
     const rowsPerPage = 10;
-    const pages = Math.ceil(users.length / rowsPerPage);
+    const pages = Math.ceil(clients.length / rowsPerPage);
     const items = useMemo(() => {
         const start = (page - 1) * rowsPerPage;
         const end = start + rowsPerPage;
-        return users.slice(start, end);
-    }, [page, users]);
+        return clients.slice(start, end);
+    }, [page, clients]);
 
-    if (loading) return <div className="flex justify-center items-center min-h-[200px]">Cargando usuarios...</div>;
+    if (loading) return <div className="flex justify-center items-center min-h-[200px]">Cargando clientes...</div>;
     if (error) return <div className="flex justify-center items-center min-h-[200px] text-red-500">Error: {error}</div>;
 
     return (
-        <ProtectedRoute allowedRoles={[1]}>
-            <Heading> Usuarios </Heading>
-            <div className="p-4 md:p-8">
+        <ProtectedRoute allowedRoles={[1, 3, 4]}>
+            <Heading> Clientes </Heading>
+            <div className='p-4 md:p-8'>
                 <div className="flex justify-end mb-4">
-                    <Button onPress={() => router.push('/User/New')} color="primary">
+                    <Button onPress={() => router.push('/Dashboard/Contact/Customer/New')} color="primary">
                         <Icon icon="heroicons:plus" width="20" height="20" className="md:mr-2" />
-                        <span className="hidden md:inline">Crear Usuario</span>
+                        <span className="hidden md:inline">Registrar Cliente</span>
                     </Button>
                 </div>
-
-                {/* Vista Desktop - Tabla */}
-                <div className="hidden md:block">
+                <div className='hidden md:block'>
                     <Table
-                        aria-label="Tabla de usuarios"
+                        aria-label="Lista de Clientes"
                         bottomContent={
-                            <div className="flex w-full justify-center">
+                            <div className='flex w-full justify-center'>
                                 <Pagination
                                     isCompact
                                     showControls
                                     showShadow
-                                    color="secondary"
+                                    color='secondary'
                                     page={page}
                                     total={pages}
                                     onChange={(page) => setPage(page)}
@@ -88,49 +84,40 @@ export default function UserListView() {
                             </div>
                         }
                         classNames={{
-                            wrapper: "min-h-[222px]",
+                            wrapper: "min-h-[222px"
                         }}
                     >
                         <TableHeader>
-                            <TableColumn key="nombre">Nombre Completo</TableColumn>
+                            <TableColumn key="nombre">Nombre</TableColumn>
+                            <TableColumn key="carnet">Carnet</TableColumn>
                             <TableColumn key="correo">Correo</TableColumn>
-                            <TableColumn key="celular">Celular</TableColumn>
-                            <TableColumn key="rol">Rol</TableColumn>
                             <TableColumn key="acciones" className="text-center">Acciones</TableColumn>
                         </TableHeader>
                         <TableBody items={items}>
                             {(item) => (
                                 <TableRow key={item.id}>
                                     <TableCell>
-                                        {`${item.primerNombre} ${item.segundoNombre ?? ''} ${item.apellidoPaterno} ${item.apellidoMaterno}`}
+                                        {item.nombre}
                                     </TableCell>
                                     <TableCell>
-                                        {item.correo} 
+                                        {item.carnet}
                                     </TableCell>
                                     <TableCell>
-                                        {item.celular}
-                                    </TableCell>
-                                    <TableCell>
-                                        <Chip 
-                                            color={item.rol === 1 ? "primary" : "secondary"} 
-                                            size="sm"
-                                            variant="flat"
-                                        >
-                                            {getRoleName(item.rol)}
-                                        </Chip>
+                                        {item.correo}
                                     </TableCell>
                                     <TableCell>
                                         <div className="flex gap-4 justify-center">
-                                            <Link 
-                                                href={`/User/${item.id}/Edit`}
+                                            <Link
+                                                href={`/Dashboard/Contact/Customer/${item.id}/Edit`}
                                                 className="transition-transform hover:scale-110"
                                             >
                                                 <Icon icon="iconamoon:edit-thin" width="24" height="24" color="#0007fc" />
                                             </Link>
-                                            <DeleteUserConfirm 
-                                                usuario={item} 
+                                            <DeleteCustomerConfirm
+                                                cliente={item}
                                                 onDeleteSuccess={handleDeleteSuccess}
                                             />
+
                                         </div>
                                     </TableCell>
                                 </TableRow>
@@ -139,11 +126,10 @@ export default function UserListView() {
                     </Table>
                 </div>
 
-                {/* Vista Mobile - Cards */}
                 <div className="md:hidden space-y-4">
-                            
-                    <CardMobile items={items} handleDeleteSuccess={handleDeleteSuccess} />
-                    
+
+                    <CardMobileCustomer items={items} handleDeleteSuccess={handleDeleteSuccess} />
+
                     {/* Pagination para móvil */}
                     <div className="flex justify-center pt-4">
                         <Pagination
@@ -158,6 +144,8 @@ export default function UserListView() {
                     </div>
                 </div>
             </div>
+
+
         </ProtectedRoute>
-    );
+    )
 }

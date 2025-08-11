@@ -24,7 +24,7 @@ export async function handleLoginAction(formData: FormData) {
         if (response.status === 200) {
             return {
                 success: true,
-                redirectTo: "/dashboard",
+                redirectTo: "/Dashboard",
                 data: response.data,
             };
         }

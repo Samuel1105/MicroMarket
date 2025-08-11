@@ -22,7 +22,7 @@ const SideNav = () => {
     <aside className="lg:w-60 bg-white h-screen fixed border-r border-zinc-200 hidden lg:block">
       <div className="flex flex-col h-full">
         <Link
-          href="/dashboard"
+          href="/Dashboard"
           className="flex flex-row space-x-3 items-center justify-center lg:justify-start lg:px-6 border-b border-zinc-200 h-12 w-full flex-shrink-0"
           aria-label="Dashboard"
         >

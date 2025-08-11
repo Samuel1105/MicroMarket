@@ -5,9 +5,9 @@ import { SideNavItem } from '@/src/types';
 export const SIDENAV_ITEMS: SideNavItem[] = [
   {
     title: 'Dashboard',
-    path: '/dashboard',
+    path: '/Dashboard',
     icon: <Icon icon="lucide:home" width="24" height="24" />,
-    roles: [1, 3], // Todos los roles
+    roles: [1,2,3,4,5], // Todos los roles
   },
   {
     title: 'Almacén',
@@ -72,13 +72,13 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
     roles: [1, 2], // Solo admin y supervisor
   },
   {
-    title: 'Clientes',
-    path: '/dashboard/clientes',
+    title: 'Contactos',
+    path: '/Contact/List',
     icon: <Icon icon="lucide:user-check" width="24" height="24" />,
     submenu: true,
     subMenuItems: [
-      { title: 'Lista de Clientes', path: '/dashboard/clientes/lista', roles: [1, 2, 3] },
-      { title: 'Gestión', path: '/dashboard/clientes/gestion', roles: [1, 2] },
+      { title: 'Clientes', path: '/Dashboard/Contact/Customer/List', roles: [1, 2, 3] },
+      { title: 'Proveedores', path: '/Dashboard/Contact/Proveedores', roles: [1, 2] },
     ],
     roles: [1, 2, 3],
   },

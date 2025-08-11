@@ -1,25 +1,24 @@
-import { deleteUserAction } from "@/actions/update-user-action";
-import { useAuth } from "@/app/context/AuthContext"
-import { useConfirmationModal } from "@/hooks/useConfirmationModal";
+import { CustomerDelete } from "@/src/schema/SchemaContact";
 import { ConfirmationModal } from "../ui/ConfirmationModal";
+import { useAuth } from "@/app/context/AuthContext";
+import { useConfirmationModal } from "@/hooks/useConfirmationModal";
 import { Icon } from "@iconify/react/dist/iconify.js";
-import { UserListSingular } from "@/src/schema";
-//import { ListUser } from "@/actions/list-user-action";
+import { deleteCustomerAction } from "@/actions/clientes/update-customer-action";
 import { toast } from "react-toastify";
 
 type DeleteUserConfirmProp = {
-    usuario: UserListSingular;
+    cliente: CustomerDelete;
     onDeleteSuccess?: () => void;
 }
 
-export default function DeleteUserConfirm({usuario , onDeleteSuccess }: DeleteUserConfirmProp) {
+export default function DeleteCustomerConfirm({ cliente, onDeleteSuccess }: DeleteUserConfirmProp) {
     const { user } = useAuth()
     const { isOpen, config, isLoading: modalLoading, openModal, closeModal, handleConfirm } = useConfirmationModal();
-
+    
     const handleDeleteUser = (userId: number, userName: string) => {
         openModal({
             title: "Confirmar Eliminación",
-            message: `¿Estás seguro de que deseas eliminar al usuario "${userName}"? Esta acción no se puede deshacer.`,
+            message: `¿Estás seguro de que deseas eliminar al cliente "${userName}"? Esta acción no se puede deshacer.`,
             confirmText: "Eliminar",
             cancelText: "Cancelar",
             type: "danger",
@@ -29,7 +28,7 @@ export default function DeleteUserConfirm({usuario , onDeleteSuccess }: DeleteUs
                     return;
                 }
 
-                const result = await deleteUserAction(userId, user?.id);
+                const result = await deleteCustomerAction(userId, user?.id);
 
                 if (result?.success) {
                     toast.success(result.message)
@@ -41,13 +40,12 @@ export default function DeleteUserConfirm({usuario , onDeleteSuccess }: DeleteUs
             }
         });
     };
-
     return (
         <>
             <button
                 onClick={() => handleDeleteUser(
-                    usuario.id,
-                    `${usuario.primerNombre} ${usuario.segundoNombre} ${usuario.apellidoPaterno} ${usuario.apellidoMaterno}`
+                    cliente.id,
+                    `${cliente.nombre} `
                 )}
                 className="transition-transform hover:scale-110"
             >
@@ -65,6 +63,5 @@ export default function DeleteUserConfirm({usuario , onDeleteSuccess }: DeleteUs
                 type={config?.type}
             />
         </>
-
     )
 }

@@ -1,6 +1,7 @@
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Heading from "@/components/ui/Heading";
-import EditUserForm from "@/components/users/EditUserForm";
-import UserForm from "@/components/users/UserForm";
+import EditUserForm from "@/components/user/EditUserForm";
+import UserForm from "@/components/user/UserForm";
 import { prisma } from "@/src/lib/prisma";
 import { notFound } from "next/navigation";
 
@@ -21,7 +22,7 @@ export default async function EditUserPage({ params }: { params: { id: string } 
     const usuario = await getUserById(+params.id)
     
     return (
-        <>
+        <ProtectedRoute allowedRoles={[1]}>
             <Heading >Editando a {usuario.primerNombre}</Heading>
             <div className="container mx-auto px-4  max-w-6xl">
 
@@ -33,6 +34,6 @@ export default async function EditUserPage({ params }: { params: { id: string } 
                     </EditUserForm>
                 </div>
             </div>
-        </>
+        </ProtectedRoute>
     )
 }

@@ -76,9 +76,9 @@ export async function updateUserAction(data: unknown) {
         };
 
     } catch (error) {
-        console.error("Error al crear usuario:", error);
+        console.error("Error al actualizar usuario:", error);
         return {
-            error: error instanceof Error ? error.message : "Error desconocido al crear usuario"
+            error: error instanceof Error ? error.message : "Error desconocido al actualizar usuario"
         };
     }
 }
@@ -106,9 +106,9 @@ export async function deleteUserAction(id: number , userId: number) {
 
 
     } catch (error) {
-        console.error("Error al crear usuario:", error);
+        console.error("Error al eliminar el usuario:", error);
         return {
-            error: error instanceof Error ? error.message : "Error desconocido al crear usuario"
+            error: error instanceof Error ? error.message : "Error desconocido al eliminar el usuario"
         };
     }
 }

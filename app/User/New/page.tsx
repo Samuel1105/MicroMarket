@@ -1,10 +1,11 @@
+import { ProtectedRoute } from '@/components/ProtectedRoute'
 import Heading from '@/components/ui/Heading'
-import AddUserForm from '@/components/users/AddUserForm'
-import UserForm from '@/components/users/UserForm'
+import AddUserForm from '@/components/user/AddUserForm'
+import UserForm from '@/components/user/UserForm'
 
 export default function CreateUserPage() {
   return (
-    <>
+    <ProtectedRoute allowedRoles={[1]}>
       <Heading >Nuevo Usuario</Heading>
       <div className="container mx-auto px-4  max-w-6xl">
          
@@ -14,7 +15,7 @@ export default function CreateUserPage() {
           </AddUserForm>
         </div>
       </div>
-    </>
+    </ProtectedRoute>
 
   )
 }
