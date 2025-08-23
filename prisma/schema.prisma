@@ -17,9 +17,9 @@ model Categoria {
 
 model Cliente {
   id                     Int       @id(map: "PK__Cliente__3213E83F993E9587") @default(autoincrement())
-  carnet                 String?   @db.NVarChar(20)
-  nombre                 String?   @db.NVarChar(100)
-  correo                 String?   @db.NVarChar(100)
+  carnet                 String    @db.NVarChar(20)
+  nombre                 String    @db.NVarChar(100)
+  correo                 String    @db.NVarChar(100)
   estado                 Int?      @default(1, map: "DF_Cliente_estado") @db.TinyInt
   fechaRegistro          DateTime? @default(now(), map: "DF__Cliente__fechaRe__74AE54BC") @db.DateTime
   usuarioIdRegistro      Int?      @db.TinyInt

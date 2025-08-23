@@ -4,6 +4,7 @@ import CardMobileCustomer from '@/components/contact/CardMobileCustomer'
 import DeleteCustomerConfirm from '@/components/contact/DeleteCustomerConfirm'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import Heading from '@/components/ui/Heading'
+import Loading from '@/components/ui/Loading'
 import { CustomerList } from '@/src/schema/SchemaContact'
 import { Button, Link, Pagination, Table, TableBody, TableCell, TableColumn, TableHeader, TableRow } from '@heroui/react'
 import { Icon } from '@iconify/react/dist/iconify.js'
@@ -54,7 +55,7 @@ export default function ContactListView() {
         return clients.slice(start, end);
     }, [page, clients]);
 
-    if (loading) return <div className="flex justify-center items-center min-h-[200px]">Cargando clientes...</div>;
+    if (loading) return <Loading> Cargando clientes...</Loading>
     if (error) return <div className="flex justify-center items-center min-h-[200px] text-red-500">Error: {error}</div>;
 
     return (

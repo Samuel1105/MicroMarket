@@ -27,11 +27,9 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
     icon: <Icon icon="lucide:shopping-bag" width="24" height="24" />,
     submenu: true,
     subMenuItems: [
-      { title: 'Catálogo', path: '/dashboard/productos/catalogo', roles: [1, 2, 3] },
-      { title: 'Gestión', path: '/dashboard/productos/gestion', roles: [1, 2] },
-      { title: 'Categorías', path: '/dashboard/productos/categorias', roles: [1, 2] },
+      { title: 'Categorías', path: '/Dashboard/Product/Category/List', roles: [1, 3] },
     ],
-    roles: [1, 2, 3], 
+    roles: [1, 3], 
   },
   {
     title: 'Ventas',
@@ -77,10 +75,10 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
     icon: <Icon icon="lucide:user-check" width="24" height="24" />,
     submenu: true,
     subMenuItems: [
-      { title: 'Clientes', path: '/Dashboard/Contact/Customer/List', roles: [1, 2, 3] },
-      { title: 'Proveedores', path: '/Dashboard/Contact/Proveedores', roles: [1, 2] },
+      { title: 'Clientes', path: '/Dashboard/Contact/Customer/List', roles: [1, 3, 4] },
+      { title: 'Proveedores', path: '/Dashboard/Contact/Suppier/List', roles: [1, 3,4] },
     ],
-    roles: [1, 2, 3],
+    roles: [1, 3, 4],
   },
   {
     title: 'Usuarios',
