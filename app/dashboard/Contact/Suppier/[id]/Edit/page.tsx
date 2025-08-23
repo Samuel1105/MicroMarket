@@ -9,7 +9,8 @@ import React from 'react'
 async function getSupplierById(id: number) {
     const proveedor = await prisma.proveedor.findUnique({
         where: {
-            id
+            id,
+            estado: 1
         }
     })
 
@@ -21,7 +22,8 @@ async function getSupplierById(id: number) {
 }
 
 export default async function EditSupplierPage({ params }: { params: { id: string } }) {
-    const proveedor = await getSupplierById(+params.id)
+    const { id } = await params; 
+    const proveedor = await getSupplierById(+id)
     return (
         <ProtectedRoute allowedRoles={[1, 3, 4]}>
             <Heading >Editando a {proveedor.nombre}</Heading>

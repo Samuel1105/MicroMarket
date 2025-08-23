@@ -18,8 +18,8 @@ async function getUserById(id: number) {
 }
 
 export default async function EditUserPage({ params }: { params: { id: string } }) {
-
-    const usuario = await getUserById(+params.id)
+    const { id } = await params; 
+    const usuario = await getUserById(+id)
     
     return (
         <ProtectedRoute allowedRoles={[1]}>

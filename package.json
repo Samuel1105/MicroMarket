@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@heroui/react": "^2.7.10",
+    "@hookform/resolvers": "^5.2.1",
     "@iconify/react": "^6.0.0",
     "@prisma/adapter-mssql": "^6.10.1",
     "@prisma/client": "6.10.1",
@@ -25,6 +26,7 @@
     "prisma": "6.10.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-hook-form": "^7.62.0",
     "react-toastify": "^11.0.5",
     "zod": "^3.25.67"
   },

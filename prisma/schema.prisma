@@ -8,11 +8,14 @@ datasource db {
 }
 
 model Categoria {
-  id            Int        @id(map: "PK__Categori__3213E83FA6D43896") @default(autoincrement()) @db.TinyInt
-  nombre        String     @db.NVarChar(50)
-  estado        Int?       @default(1, map: "DF__Categoria__estad__37A5467C") @db.TinyInt
-  fechaRegistro DateTime?  @default(now(), map: "DF__Categoria__fecha__38996AB5") @db.DateTime
-  Producto      Producto[]
+  id                     Int        @id(map: "PK__Categori__3213E83FA6D43896") @default(autoincrement()) @db.TinyInt
+  nombre                 String     @db.NVarChar(50)
+  estado                 Int?       @default(1, map: "DF__Categoria__estad__37A5467C") @db.TinyInt
+  fechaRegistro          DateTime?  @default(now(), map: "DF__Categoria__fecha__38996AB5") @db.DateTime
+  usuarioIdRegistro      Int?       @db.TinyInt
+  fechaActualizacion     DateTime?  @db.DateTime
+  usuarioIdActualizacion Int?       @db.TinyInt
+  Producto               Producto[]
 }
 
 model Cliente {

@@ -18,7 +18,8 @@ async function getClientById(id: number) {
 }
 
 export default async function EditCustomerPage({ params }: { params: { id: string } }) {
-    const client = await getClientById(+params.id)
+    const { id } = await params; 
+    const client = await getClientById(+id)
     return (
         <ProtectedRoute allowedRoles={[1, 3, 4]}>
             <Heading >Editando a {client.nombre}</Heading>
