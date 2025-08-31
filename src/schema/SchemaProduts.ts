@@ -86,7 +86,7 @@ export const productoSchema = z.object({
     categoriaID: z.number().min(1, "Debe seleccionar una categoría"),
     proveedorID: z.number().min(1, "Debe seleccionar un proveedor"),
     unidadBaseID: z.number().min(1, "Debe seleccionar una unidad base"),
-    requiereNumeroSerie: z.boolean().default(false),
+    //requiereNumeroSerie: z.boolean().default(false),
     estado: z.number().default(1),
     fechaRegistro: z.date().optional(),
     usuarioRegistro: z.number(),
@@ -101,7 +101,7 @@ export const productoCreateSchema = productoSchema.pick({
     categoriaID: true,
     proveedorID: true,
     unidadBaseID: true,
-    requiereNumeroSerie: true,
+    //requiereNumeroSerie: true,
     usuarioRegistro: true
 })
 
@@ -120,7 +120,7 @@ export const productoCompleteFormSchema = z.object({
     descripcion: z.string().optional(),
     categoriaID: z.string().min(1, "Debe seleccionar una categoría"),
     proveedorID: z.string().min(1, "Debe seleccionar un proveedor"),
-    requiereNumeroSerie: z.boolean().default(false).optional(),
+    //requiereNumeroSerie: z.boolean().default(false).optional(),
     conversiones: z.array(z.object({
         unidadOrigenID: z.string().min(1, "Debe seleccionar una unidad"),
         factorConversion: z.number().min(0.01, "El factor debe ser mayor a 0"),
@@ -158,7 +158,7 @@ export type ProductoApiData = {
         categoriaID: number;
         proveedorID: number;
         unidadBaseID: number;
-        requiereNumeroSerie: boolean;
+        //requiereNumeroSerie: boolean;
         usuarioRegistro: number;
     };
     conversiones: {
@@ -174,3 +174,110 @@ export type ProductoApiData = {
     }[];
 }
 
+
+// Schema para actualización de producto
+export const productoUpdateSchema = z.object({
+    id: z.number(),
+    nombre: z.string().min(1, "El nombre del producto es requerido"),
+    descripcion: z.string().optional().nullable(),
+    categoriaID: z.number().min(1, "Debe seleccionar una categoría"),
+    proveedorID: z.number().min(1, "Debe seleccionar un proveedor"),
+    unidadBaseID: z.number().min(1, "Debe seleccionar una unidad base"),
+    requiereNumeroSerie: z.boolean().default(false),
+    fechaActualizacion: z.date().optional(),
+    usuarioActualizacion: z.number()
+})
+
+// Schema para conversiones existentes (para editar)
+export const conversionUnidadUpdateSchema = z.object({
+    id: z.number().optional(), // Opcional para nuevas conversiones
+    productoID: z.number(),
+    unidadOrigenID: z.number().min(1, "Debe seleccionar una unidad origen"),
+    unidadDestinoID: z.number().min(1, "Debe seleccionar una unidad destino"),
+    factorConversion: z.number().min(0.01, "El factor debe ser mayor a 0"),
+    precioVentaUnitario: z.number().min(0, "El precio debe ser mayor o igual a 0"),
+    estado: z.number().default(1)
+})
+
+// Schema para el formulario completo de edición
+export const productoCompleteEditFormSchema = z.object({
+    id: z.number().optional(), // Incluir ID para edición
+    nombre: z.string().min(1, "El nombre del producto es requerido"),
+    descripcion: z.string().optional(),
+    categoriaID: z.string().min(1, "Debe seleccionar una categoría"),
+    proveedorID: z.string().min(1, "Debe seleccionar un proveedor"),
+    //requiereNumeroSerie: z.boolean().default(false).optional(),
+    conversiones: z.array(z.object({
+        id: z.number().optional(), // ID de la conversión existente
+        unidadOrigenID: z.string().min(1, "Debe seleccionar una unidad"),
+        factorConversion: z.number().min(0.01, "El factor debe ser mayor a 0"),
+        precioVentaUnitario: z.number().min(0, "El precio debe ser mayor o igual a 0"),
+        esUnidadBase: z.boolean().default(false).optional(),
+        estado: z.number().default(1).optional()
+    })).min(1, "Debe tener al menos una unidad de venta")
+        .refine((conversiones) => {
+            return conversiones.length > 0 && conversiones[0].factorConversion === 1;
+        }, "La primera unidad debe ser la unidad base con factor 1")
+})
+
+// Tipo para datos completos del producto (estructura transformada)
+export type ProductoCompleto = {
+    id: number;
+    nombre: string;
+    descripcion?: string | null;
+    categoriaID: number;
+    proveedorID: number;
+    unidadBaseID: number;
+    //requiereNumeroSerie: boolean;
+    conversiones: {
+        id: number;
+        unidadOrigenID: number;
+        unidadDestinoID: number;
+        factorConversion: number;
+        precioVentaUnitario: number;
+        estado: number;
+        unidadOrigen: {
+            id: number;
+            nombre: string;
+            abreviatura: string | null;
+        };
+    }[];
+    Categoria: {
+        id: number;
+        nombre: string;
+    };
+    Proveedor: {
+        id: number;
+        nombre: string;
+    };
+}
+
+// Tipo para el formulario de edición
+export type ProductoCompleteEditForm = z.infer<typeof productoCompleteEditFormSchema>
+
+// Tipo para los datos que se enviarán a la API de actualización
+export type ProductoUpdateApiData = {
+    producto: {
+        id: number;
+        nombre: string;
+        descripcion?: string;
+        categoriaID: number;
+        proveedorID: number;
+        unidadBaseID: number;
+        //requiereNumeroSerie: boolean;
+        usuarioActualizacion: number;
+    };
+    conversiones: {
+        id?: number; // ID presente para conversiones existentes, undefined para nuevas
+        unidadOrigenID: number;
+        unidadDestinoID: number;
+        factorConversion: number;
+        precioVentaUnitario: number;
+        estado: number;
+    }[];
+    conversionesEliminadas?: number[]; // IDs de conversiones a eliminar
+}
+
+// Exportar tipos existentes y nuevos
+export type ProductoUpdate = z.infer<typeof productoUpdateSchema>
+export type ConversionUnidadUpdate = z.infer<typeof conversionUnidadUpdateSchema>

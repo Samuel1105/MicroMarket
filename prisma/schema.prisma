@@ -89,7 +89,6 @@ model Producto {
   categoriaID          Int                 @db.TinyInt
   proveedorID          Int                 @db.SmallInt
   unidadBaseID         Int                 @db.TinyInt
-  requiereNumeroSerie  Boolean?            @default(false, map: "DF__Producto__requie__4222D4EF")
   estado               Int?                @default(1, map: "DF__Producto__estado__4316F928") @db.TinyInt
   fechaRegistro        DateTime?           @default(now(), map: "DF__Producto__fechaR__440B1D61") @db.DateTime
   usuarioRegistro      Int                 @db.TinyInt

@@ -40,7 +40,6 @@ export async function createProductAction({
         categoriaID: producto.categoriaID,
         proveedorID: producto.proveedorID,
         unidadBaseID: producto.unidadBaseID,
-        requiereNumeroSerie: producto.requiereNumeroSerie ?? false,
         fechaRegistro: getBoliviaTime(),
         usuarioRegistro: +producto.usuarioRegistro,
         // ⬇️ Insert anidado: Prisma completa productoID por ti
