@@ -1,5 +1,4 @@
 'use client'
-
 import {
   Card,
   CardBody,
@@ -17,17 +16,13 @@ import { handleLoginAction } from "@/actions/user/login-user-action";
 import { useAuth } from "@/app/context/AuthContext";
 
 export default function Login() {
-
   const { login, isLoading } = useAuth();
   const router = useRouter();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-
   const handleLogin = async (event: FormEvent) => {
-
     event.preventDefault();
     setIsSubmitting(true);
 
@@ -37,9 +32,10 @@ export default function Login() {
 
     try {
       const result = await handleLoginAction(formData);
-      if (result.success) {
+      
+      if (result.success && result.data) {
         toast.success(result.data.message);
-        login(result.data.data)
+        login(result.data.data);
         router.push(result.redirectTo!);
       } else {
         if (result.errors) {
@@ -55,6 +51,7 @@ export default function Login() {
       setIsSubmitting(false);
     }
   };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -87,7 +84,6 @@ export default function Login() {
               required
             />
           </div>
-
           <div className="mb-4">
             <label htmlFor="password" className="block text-sm font-medium text-zinc-700">
               Contraseña
@@ -104,7 +100,6 @@ export default function Login() {
               required
             />
           </div>
-
           <Button
             type="submit"
             fullWidth
@@ -112,9 +107,8 @@ export default function Login() {
             className="w-full bg-orange-500 text-white py-2 rounded-md hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
             disabled={isSubmitting}
           >
-            Iniciar Sesión
+            {isSubmitting ? "Iniciando..." : "Iniciar Sesión"}
           </Button>
-
           {isSubmitting && (
             <div className="flex justify-center mt-4">
               <CircularProgress aria-label="Loading..." />
@@ -122,7 +116,6 @@ export default function Login() {
           )}
         </CardBody>
       </Card>
-
       <div className="hidden md:block">
         <Image src="/Image/logo.png" width={500} height={400} alt="Logo" />
       </div>

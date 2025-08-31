@@ -65,7 +65,7 @@ export default function ProductFormUnidades({ producto }: ProductFormUnidadesPro
         if (fields.length > 1) {
             // Si estamos en modo edición y la conversión tiene ID, marcarla como eliminada
             if (isEditMode && watchedConversiones[index]?.id) {
-                const conversionActual = watchedConversiones[index];
+                //const conversionActual = watchedConversiones[index];
                 // Cambiar el estado a 0 para marcar como eliminada
                 // En lugar de remove, podemos usar setValue para cambiar el estado
                 remove(index); // Por simplicidad, removemos del array y manejaremos las eliminadas en el hook
