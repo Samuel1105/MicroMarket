@@ -45,6 +45,7 @@ export type CategoryCreate = z.infer<typeof categoryCreate>
 export type CategoryUpdate = z.infer<typeof categoryUpdate>
 export type CategoryDelete = z.infer<typeof categoryDelete>
 
+//seccion 2
 
 // Schema para Unidad de Medida
 export const unidadMedidaSchema = z.object({
@@ -88,7 +89,7 @@ export const productoSchema = z.object({
     requiereNumeroSerie: z.boolean().default(false),
     estado: z.number().default(1),
     fechaRegistro: z.date().optional(),
-    usuarioRegistro: z.number().optional(),
+    usuarioRegistro: z.number(),
     fechaActualizacion: z.date().optional(),
     usuarioActualizacion: z.number().optional()
 })
@@ -107,9 +108,10 @@ export const productoCreateSchema = productoSchema.pick({
 // Schema para conversiones en el formulario
 export const conversionFormSchema = z.object({
     unidadOrigenID: z.string().min(1, "Debe seleccionar una unidad").transform(val => parseInt(val)),
+    unidadDestinoID: z.string().min(1, "Debe seleccionar una unidad").transform(val => parseInt(val)),
     factorConversion: z.number().min(0.01, "El factor debe ser mayor a 0"),
     precioVentaUnitario: z.number().min(0, "El precio debe ser mayor o igual a 0"),
-    esUnidadBase: z.boolean().default(false)
+    estado: z.number()
 })
 
 // Schema para el formulario completo de producto (MEJORADO)

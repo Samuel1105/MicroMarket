@@ -1,33 +1,24 @@
 'use server'
 import { prisma } from "@/src/lib/prisma";
+import { ConversionForm, ProductoCreate } from "@/src/schema/SchemaProduts";
 import { getBoliviaTime } from "@/src/utils/date";
 
 
 
-type ConversionInput = {
-  unidadOrigenID: number;
-  unidadDestinoID: number;
-  factorConversion: number;
-  precioVentaUnitario: number;
-  estado?: number;
-};
-
-type ProductoInput = {
-  nombre: string;
-  descripcion?: string;
-  categoriaID: number;
-  proveedorID: number;
-  unidadBaseID: number;
-  requiereNumeroSerie?: boolean;
-  usuarioRegistro: number;
-};
+// type ConversionInput = {
+//   unidadOrigenID: number;
+//   unidadDestinoID: number;
+//   factorConversion: number;
+//   precioVentaUnitario: number;
+//   estado?: number;
+// };
 
 export async function createProductAction({
   producto,
   conversiones,
 }: {
-  producto: ProductoInput;
-  conversiones: ConversionInput[];
+  producto: ProductoCreate;
+  conversiones: ConversionForm[];
 }) {
   return prisma.$transaction(async (tx) => {
     // Reglas mínimas para la conversión base (debe ser la primera)
@@ -42,7 +33,7 @@ export async function createProductAction({
       );
     }
 
-    const created = await tx.producto.create({
+    await tx.producto.create({
       data: {
         nombre: producto.nombre,
         descripcion: producto.descripcion ?? null,
@@ -51,7 +42,7 @@ export async function createProductAction({
         unidadBaseID: producto.unidadBaseID,
         requiereNumeroSerie: producto.requiereNumeroSerie ?? false,
         fechaRegistro: getBoliviaTime(),
-        usuarioRegistro: producto.usuarioRegistro,
+        usuarioRegistro: +producto.usuarioRegistro,
         // ⬇️ Insert anidado: Prisma completa productoID por ti
         ConversionUnidad: {
           create: conversiones.map((c) => ({
@@ -66,6 +57,6 @@ export async function createProductAction({
       include: { ConversionUnidad: true },
     });
 
-    return { ok: true, data: created };
+    return { ok: true};
   });
 }

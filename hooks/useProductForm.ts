@@ -61,11 +61,6 @@ export const useProductForm = () => {
                         estado: 1
                     })),
             };
-
-            console.log('🚀 Datos para enviar a la API:');
-            console.log('📦 Producto:', apiData.producto);
-            console.log('🔄 Conversiones:', apiData.conversiones);
-            console.log('📋 JSON completo:', JSON.stringify(apiData, null, 2));
             
             // Aquí llamarías a tu action o API
             const result = await createProductAction(apiData);
@@ -75,7 +70,7 @@ export const useProductForm = () => {
             }
 
             // Simular respuesta exitosa
-            alert('✅ Producto registrado exitosamente! Revisa la consola para ver los datos.');
+            //alert('✅ Producto registrado exitosamente! Revisa la consola para ver los datos.');
             
             // Opcional: limpiar el formulario
             // methods.reset();
