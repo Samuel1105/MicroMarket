@@ -13,20 +13,24 @@ async function getSupplierById(id: number) {
             estado: 1
         }
     })
-
     if (!proveedor) {
         notFound()
     }
-
     return proveedor
 }
 
-export default async function EditSupplierPage({ params }: { params: { id: string } }) {
-    const { id } = await params; 
+// Corregido: params ahora es una Promise en Next.js 15
+export default async function EditSupplierPage({ 
+    params 
+}: { 
+    params: Promise<{ id: string }> 
+}) {
+    const { id } = await params;
     const proveedor = await getSupplierById(+id)
+    
     return (
         <ProtectedRoute allowedRoles={[1, 3, 4]}>
-            <Heading >Editando a {proveedor.nombre}</Heading>
+            <Heading>Editando a {proveedor.nombre}</Heading>
             <div className="container mx-auto px-4 max-w-6xl">
                 <div className="w-full pt-5">
                     <EditSupplierForm>
@@ -34,7 +38,6 @@ export default async function EditSupplierPage({ params }: { params: { id: strin
                     </EditSupplierForm>
                 </div>
             </div>
-
         </ProtectedRoute>
     )
 }

@@ -20,7 +20,7 @@ async function getCategorybyId(id: number) {
     return categoria
 }
 
-export default async function EditCategoryView({ params }: { params: { id: string } }) {
+export default async function EditCategoryView({ params }: { params: Promise<{ id: string }>  }) {
     const { id } = await params;
     const categoria = await getCategorybyId(+id)
     return (

@@ -17,19 +17,23 @@ async function getUserById(id: number) {
     return product
 }
 
-export default async function EditUserPage({ params }: { params: { id: string } }) {
-    const { id } = await params; 
+// Corregido: params ahora es una Promise en Next.js 15
+export default async function EditUserPage({ 
+    params 
+}: { 
+    params: Promise<{ id: string }> 
+}) {
+    const { id } = await params;
     const usuario = await getUserById(+id)
-    
+   
     return (
         <ProtectedRoute allowedRoles={[1]}>
-            <Heading >Editando a {usuario.primerNombre}</Heading>
-            <div className="container mx-auto px-4  max-w-6xl">
-
+            <Heading>Editando a {usuario.primerNombre}</Heading>
+            <div className="container mx-auto px-4 max-w-6xl">
                 <div className="w-full pt-5">
                     <EditUserForm>
-                        <UserForm 
-                            usuario = {usuario}
+                        <UserForm
+                            usuario={usuario}
                         />
                     </EditUserForm>
                 </div>

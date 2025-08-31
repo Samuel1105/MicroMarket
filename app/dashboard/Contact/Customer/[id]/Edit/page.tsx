@@ -17,12 +17,19 @@ async function getClientById(id: number) {
     return client
 }
 
-export default async function EditCustomerPage({ params }: { params: { id: string } }) {
+// En Next.js 15, params es una Promise
+export default async function EditCustomerPage({ 
+    params 
+}: { 
+    params: Promise<{ id: string }> 
+}) {
+    // Await the params Promise
     const { id } = await params; 
     const client = await getClientById(+id)
+    
     return (
         <ProtectedRoute allowedRoles={[1, 3, 4]}>
-            <Heading >Editando a {client.nombre}</Heading>
+            <Heading>Editando a {client.nombre}</Heading>
             <div className="container mx-auto px-4 max-w-6xl">
                 <div className="w-full pt-5">
                     <EditCustomerForm>
@@ -30,7 +37,6 @@ export default async function EditCustomerPage({ params }: { params: { id: strin
                     </EditCustomerForm>
                 </div>
             </div>
-
         </ProtectedRoute>
     )
 }
