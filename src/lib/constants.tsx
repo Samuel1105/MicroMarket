@@ -28,6 +28,7 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
     submenu: true,
     subMenuItems: [
       { title: 'Categorías', path: '/Dashboard/Product/Category/List', roles: [1, 3] },
+      { title: 'Crear', path: '/Dashboard/Product/New', roles: [1, 3] },
     ],
     roles: [1, 3], 
   },
