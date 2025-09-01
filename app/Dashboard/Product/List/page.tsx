@@ -1,71 +1,68 @@
 "use client"
-import { ListCustomer } from '@/actions/clientes/list-customer-action'
-import CardMobileCustomer from '@/components/contact/CardMobileCustomer'
-import DeleteCustomerConfirm from '@/components/contact/DeleteCustomerConfirm'
+import { ListProduct } from '@/actions/products/list-productInfo-action'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import Heading from '@/components/ui/Heading'
 import Loading from '@/components/ui/Loading'
-import { CustomerList } from '@/src/schema/SchemaContact'
+import { ProductListType } from '@/src/schema/SchemaProduts'
 import { Button, Link, Pagination, Table, TableBody, TableCell, TableColumn, TableHeader, TableRow } from '@heroui/react'
 import { Icon } from '@iconify/react/dist/iconify.js'
 import { useRouter } from 'next/navigation'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 
-export default function ContactListView() {
+export default function ListProductView() {
 
-    const [clients, setClients] = useState<CustomerList>([]);
+    const [productos, setProducts] = useState<ProductListType>([])
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     const router = useRouter()
 
-    const fetchClients = useCallback(async () => {
+    const fetchProducts = useCallback(async () => {
         try {
             setLoading(true)
-            const result = await ListCustomer()
+            const result = await ListProduct()
             if (result.data) {
-                setClients(result.data)
+                setProducts(result.data)
+                console.log(result.data)
                 setError(null)
             } else {
-                setError("Error al cargar clientes")
-                console.log("Error:", result?.error);
+                setError("Error al cargar los productos")
+                console.error("Error", result.error)
             }
 
         } catch (error) {
             setError("Error al conectar con el servidor" + error);
-        } finally {
+        }
+        finally {
             setLoading(false)
         }
     }, [])
 
     useEffect(() => {
-        fetchClients();
-    }, [fetchClients]);
-
-    const handleDeleteSuccess = useCallback(() => {
-        fetchClients();
-    }, [fetchClients]);
+        fetchProducts();
+    }, [fetchProducts]);
 
     const [page, setPage] = useState(1);
     const rowsPerPage = 10;
-    const pages = Math.ceil(clients.length / rowsPerPage);
+    const pages = Math.ceil(productos.length / rowsPerPage);
     const items = useMemo(() => {
         const start = (page - 1) * rowsPerPage;
         const end = start + rowsPerPage;
-        return clients.slice(start, end);
-    }, [page, clients]);
+        return productos.slice(start, end);
+    }, [page, productos]);
 
     if (loading) return <Loading> Cargando clientes...</Loading>
     if (error) return <div className="flex justify-center items-center min-h-[200px] text-red-500">Error: {error}</div>;
 
+
     return (
         <ProtectedRoute allowedRoles={[1, 3, 4]}>
-            <Heading> Clientes </Heading>
+            <Heading> Lista de Productos </Heading>
             <div className='p-4 md:p-8'>
                 <div className="flex justify-end mb-4">
-                    <Button onPress={() => router.push('/Dashboard/Contact/Customer/New')} color="primary">
+                    <Button onPress={() => router.push('/Dashboard/Product/New')} color="primary">
                         <Icon icon="heroicons:plus" width="20" height="20" className="md:mr-2" />
-                        <span className="hidden md:inline">Registrar Cliente</span>
+                        <span className="hidden md:inline">Registrar Producto</span>
                     </Button>
                 </div>
                 <div className='hidden md:block'>
@@ -90,8 +87,9 @@ export default function ContactListView() {
                     >
                         <TableHeader>
                             <TableColumn key="nombre">Nombre</TableColumn>
-                            <TableColumn key="carnet">Carnet</TableColumn>
-                            <TableColumn key="correo">Correo</TableColumn>
+                            <TableColumn key="categoria">Categoria</TableColumn>
+                            <TableColumn key="proveedor">Proveedor</TableColumn>
+                            <TableColumn key="unidad">Unidad Medida</TableColumn>
                             <TableColumn key="acciones" className="text-center">Acciones</TableColumn>
                         </TableHeader>
                         <TableBody items={items}>
@@ -101,23 +99,26 @@ export default function ContactListView() {
                                         {item.nombre}
                                     </TableCell>
                                     <TableCell>
-                                        {item.carnet}
+                                        {item.Categoria.nombre}
                                     </TableCell>
                                     <TableCell>
-                                        {item.correo}
+                                        {item.Proveedor.nombre}
+                                    </TableCell>
+                                    <TableCell>
+                                        {String(item.UnidadMedida.abreviatura)}
                                     </TableCell>
                                     <TableCell>
                                         <div className="flex gap-4 justify-center">
                                             <Link
-                                                href={`/Dashboard/Contact/Customer/${item.id}/Edit`}
+                                                href={`/Dashboard/Product/${item.id}/Edit`}
                                                 className="transition-transform hover:scale-110"
                                             >
                                                 <Icon icon="iconamoon:edit-thin" width="24" height="24" color="#0007fc" />
                                             </Link>
-                                            <DeleteCustomerConfirm
+                                            {/* <DeleteCustomerConfirm
                                                 cliente={item}
                                                 onDeleteSuccess={handleDeleteSuccess}
-                                            />
+                                            /> */}
 
                                         </div>
                                     </TableCell>
@@ -129,7 +130,7 @@ export default function ContactListView() {
 
                 <div className="md:hidden space-y-4">
 
-                    <CardMobileCustomer items={items} handleDeleteSuccess={handleDeleteSuccess} />
+                    {/* <CardMobileCustomer items={items} handleDeleteSuccess={handleDeleteSuccess} /> */}
 
                     {/* Pagination para móvil */}
                     <div className="flex justify-center pt-4">
@@ -144,9 +145,8 @@ export default function ContactListView() {
                         />
                     </div>
                 </div>
+
             </div>
-
-
         </ProtectedRoute>
     )
 }

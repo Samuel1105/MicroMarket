@@ -281,3 +281,32 @@ export type ProductoUpdateApiData = {
 // Exportar tipos existentes y nuevos
 export type ProductoUpdate = z.infer<typeof productoUpdateSchema>
 export type ConversionUnidadUpdate = z.infer<typeof conversionUnidadUpdateSchema>
+
+export const pruductSchema = z.object({
+    id: z.number(),
+    nombre: z.string(),
+    Categoria: z.object({
+        nombre: z.string().nonempty()
+    }),
+    Proveedor: z.object({
+        nombre: z.string().nonempty()
+    }),
+    UnidadMedida: z.object({
+        abreviatura: z.string().nullable()
+    }),
+})
+
+export const productListSchema = z.array(
+    pruductSchema.pick({
+        id:true,
+        nombre:true,
+        Categoria:true,
+        Proveedor:true,
+        UnidadMedida: true
+    })
+)
+
+export type ProductType = z.infer<typeof productoSchema>
+export type ProductListType = z.infer<typeof productListSchema>
+
+

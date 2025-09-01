@@ -165,7 +165,7 @@ export const useProductForm = ({ producto, isEditMode = !!producto }: UseProduct
 
             // Simulación temporal
             // console.log('📊 Datos para actualizar:', apiData);
-            // router.push('/Dashboard/Product/List');
+            router.push('/Dashboard/Product/List');
             
         } catch (error) {
             console.error('❌ Error al actualizar producto:', error);

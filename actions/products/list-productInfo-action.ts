@@ -1,15 +1,15 @@
 "use server"
 
 import { prisma } from "@/src/lib/prisma"
-import { unidadMedidaCreateSchema, unidadMedidaListSchema } from "@/src/schema/SchemaProduts"
+import { productListSchema, unidadMedidaCreateSchema, unidadMedidaListSchema } from "@/src/schema/SchemaProduts"
 
 export async function unidadMedidaList() {
     try {
         const unidades = await prisma.unidadMedida.findMany({
-            where:{
-                estado:1
+            where: {
+                estado: 1
             },
-            select:{
+            select: {
                 id: true,
                 nombre: true,
                 abreviatura: true
@@ -38,7 +38,7 @@ export async function createUnidadMedida(data: { nombre: string; abreviatura: st
     try {
         // Validar los datos de entrada
         const validatedData = unidadMedidaCreateSchema.safeParse(data)
-        
+
         if (!validatedData.success) {
             return {
                 error: validatedData.error.errors[0]?.message || "Datos inválidos"
@@ -79,13 +79,64 @@ export async function createUnidadMedida(data: { nombre: string; abreviatura: st
             message: "Unidad Creado Existosamente",
             success: true
         }
-        
-        
+
+
 
     } catch (error) {
         console.error('Error creating unidad medida:', error)
         return {
             error: error instanceof Error ? error.message : "Error desconocido al crear la unidad"
+        }
+    }
+}
+
+export async function ListProduct() {
+    try {
+        const products = await prisma.producto.findMany({
+            where: {
+                estado: 1
+            },
+            select: {
+                id: true,
+                nombre: true,
+                Categoria: {
+                    select: {
+                        nombre: true
+                    }
+                },
+                Proveedor: {
+                    select: {
+                        nombre: true
+                    }
+                },
+                UnidadMedida: {
+                    select: {
+                        abreviatura: true
+                    }
+                }
+
+            }
+        })
+
+        const response = productListSchema.safeParse(products)
+
+        if (response.success) {
+            return {
+                data: response.data
+            }
+        } else {
+            return {
+                error: response.error.message
+            }
+        }
+
+
+        return {
+            data: products
+        }
+    } catch (error) {
+        return {
+            error: error instanceof Error ? error.message : "Error desconocido"
         }
     }
 }

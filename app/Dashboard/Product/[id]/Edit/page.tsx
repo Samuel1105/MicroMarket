@@ -34,7 +34,7 @@ async function getProductById(id: number) {
                     }
                 },
                 orderBy: {
-                    factorConversion: 'asc' // La unidad base (factor 1) primero
+                    factorConversion: 'asc'
                 }
             },
             Categoria: {
@@ -56,10 +56,13 @@ async function getProductById(id: number) {
         notFound()
     }
 
+    // Destructurar para excluir ConversionUnidad
+    const { ConversionUnidad, ...productoSinConversion } = producto;
+
     // Transformar los datos para que coincidan con el tipo esperado
     return {
-        ...producto,
-        conversiones: producto.ConversionUnidad.map(conversion => ({
+        ...productoSinConversion,
+        conversiones: ConversionUnidad.map(conversion => ({
             id: conversion.id,
             unidadOrigenID: conversion.unidadOrigenID,
             unidadDestinoID: conversion.unidadDestinoID,
