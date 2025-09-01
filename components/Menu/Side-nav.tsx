@@ -8,6 +8,7 @@ import { Icon } from '@iconify/react';
 import { SideNavItem } from '@/src/types';
 import Image from 'next/image';
 import { useAuth } from '@/app/context/AuthContext';
+import { getRoleName } from '@/src/utils/rolesName';
 
 const SideNav = () => {
   const { hasRole, user } = useAuth();
@@ -49,8 +50,7 @@ const SideNav = () => {
                 {user?.primerNombre} {user?.apellidoPaterno}
               </p>
               <p className="text-xs text-gray-500">
-                {user?.rol === 1 ? 'Administrador' : 
-                 user?.rol === 2 ? 'Supervisor' : 'Empleado'}
+                {getRoleName(user?.rol ?? 2)}
               </p>
             </div>
           </div>
