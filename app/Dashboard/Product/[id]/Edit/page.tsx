@@ -90,7 +90,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
         <ProtectedRoute allowedRoles={[1, 2]}>
             <Heading>Editando: {producto.nombre}</Heading>
             <div className="container mx-auto px-4 max-w-6xl">
-                {/* Información del producto */}
+                {/* Información del producto
                 <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                     <div className="flex items-center justify-between">
                         <div>
@@ -111,7 +111,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
                             </span>
                         </div>
                     </div>
-                </div>
+                </div> */}
 
                 <div className="w-full pt-5">
                     <EditProductForm producto={producto}>

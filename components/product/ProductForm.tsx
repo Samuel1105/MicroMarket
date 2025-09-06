@@ -11,7 +11,7 @@ export default function ProductForm({ producto }: ProductFormProps) {
     const isEditMode = !!producto;
     
     return (
-        <div className='flex gap-5'>
+        <div className='flex flex-col lg:flex-row gap-5'>
             {/* Información básica del producto */}
             <div className="space-y-6 w-full">
                 <div className="flex items-center gap-3 pb-3 border-b border-gray-200">
