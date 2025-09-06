@@ -99,6 +99,8 @@ export async function ListProduct() {
             select: {
                 id: true,
                 nombre: true,
+                descripcion: true,
+                estado: true,
                 Categoria: {
                     select: {
                         nombre: true
@@ -111,30 +113,68 @@ export async function ListProduct() {
                 },
                 UnidadMedida: {
                     select: {
+                        nombre: true,
                         abreviatura: true
                     }
+                },
+                // Agregar información de stock desde StockVenta
+                StockVenta: {
+                    where: {
+                        estado: 1, // Solo stock activo
+                        cantidadDisponible: {
+                            gt: 0 // Solo donde hay stock disponible
+                        }
+                    },
+                    select: {
+                        cantidadDisponible: true,
+                        precioVenta: true,
+                        fechaVencimiento: true
+                    }
                 }
-
-            }
+            },
+            orderBy: [
+                { nombre: 'asc' }
+            ]
         })
 
-        const response = productListSchema.safeParse(products)
+        // Transformar los datos para calcular totales
+        const transformedProducts = products.map(product => ({
+            id: product.id,
+            nombre: product.nombre,
+            descripcion: product.descripcion,
+            estado: product.estado,
+            Categoria: product.Categoria,
+            Proveedor: product.Proveedor,
+            UnidadMedida: product.UnidadMedida,
+            // Calcular stock total sumando todas las cantidades disponibles
+            stockTotal: product.StockVenta.reduce((total, stock) => 
+                total + Number(stock.cantidadDisponible), 0
+            ),
+            // Tomar el precio de venta más reciente o promedio
+            precioVenta: product.StockVenta.length > 0 
+                ? Number(product.StockVenta[0].precioVenta)
+                : undefined,
+            // Encontrar la fecha de vencimiento más próxima
+            fechaVencimiento: product.StockVenta
+                .filter(stock => stock.fechaVencimiento)
+                .sort((a, b) => new Date(a.fechaVencimiento!).getTime() - new Date(b.fechaVencimiento!).getTime())
+                [0]?.fechaVencimiento?.toISOString() || null
+        }))
 
+        const response = productListSchema.safeParse(transformedProducts)
+        
         if (response.success) {
             return {
                 data: response.data
             }
         } else {
+            console.error("Error en validación del schema:", response.error)
             return {
                 error: response.error.message
             }
         }
-
-
-        return {
-            data: products
-        }
     } catch (error) {
+        console.error("Error en ListProduct:", error)
         return {
             error: error instanceof Error ? error.message : "Error desconocido"
         }

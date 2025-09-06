@@ -1,5 +1,7 @@
 "use client"
 import { ListProduct } from '@/actions/products/list-productInfo-action'
+import CardMobileProduct from '@/components/product/CardMobileProduct'
+import DeleteProductConfirm from '@/components/product/DeleteProductConfirm'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import Heading from '@/components/ui/Heading'
 import Loading from '@/components/ui/Loading'
@@ -41,6 +43,10 @@ export default function ListProductView() {
     useEffect(() => {
         fetchProducts();
     }, [fetchProducts]);
+
+    const handleDeleteSuccess = useCallback(() => {
+            fetchProducts();
+        }, [fetchProducts]);
 
     const [page, setPage] = useState(1);
     const rowsPerPage = 10;
@@ -115,10 +121,10 @@ export default function ListProductView() {
                                             >
                                                 <Icon icon="iconamoon:edit-thin" width="24" height="24" color="#0007fc" />
                                             </Link>
-                                            {/* <DeleteCustomerConfirm
-                                                cliente={item}
+                                            <DeleteProductConfirm
+                                                producto={item}
                                                 onDeleteSuccess={handleDeleteSuccess}
-                                            /> */}
+                                            />
 
                                         </div>
                                     </TableCell>
@@ -130,7 +136,7 @@ export default function ListProductView() {
 
                 <div className="md:hidden space-y-4">
 
-                    {/* <CardMobileCustomer items={items} handleDeleteSuccess={handleDeleteSuccess} /> */}
+                    <CardMobileProduct items={items} handleDeleteSuccess={handleDeleteSuccess} />
 
                     {/* Pagination para móvil */}
                     <div className="flex justify-center pt-4">

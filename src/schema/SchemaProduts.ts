@@ -279,12 +279,12 @@ export type ProductoUpdateApiData = {
 }
 
 // Exportar tipos existentes y nuevos
-export type ProductoUpdate = z.infer<typeof productoUpdateSchema>
-export type ConversionUnidadUpdate = z.infer<typeof conversionUnidadUpdateSchema>
-
+// Schema actualizado para productos con más información útil
 export const pruductSchema = z.object({
     id: z.number(),
     nombre: z.string(),
+    descripcion: z.string().nullable().optional(), // Descripción del producto
+    estado: z.number().optional(), // Estado activo/inactivo
     Categoria: z.object({
         nombre: z.string().nonempty()
     }),
@@ -292,21 +292,32 @@ export const pruductSchema = z.object({
         nombre: z.string().nonempty()
     }),
     UnidadMedida: z.object({
+        nombre: z.string(),
         abreviatura: z.string().nullable()
     }),
+    // Información de stock agregada (calculada desde StockVenta)
+    stockTotal: z.number().optional(), // Total disponible
+    precioVenta: z.number().optional(), // Precio de venta actual
+    // Información adicional útil
+    fechaVencimiento: z.string().nullable().optional(), // Próximo vencimiento
 })
 
 export const productListSchema = z.array(
     pruductSchema.pick({
-        id:true,
-        nombre:true,
-        Categoria:true,
-        Proveedor:true,
-        UnidadMedida: true
+        id: true,
+        nombre: true,
+        descripcion: true,
+        estado: true,
+        Categoria: true,
+        Proveedor: true,
+        UnidadMedida: true,
+        stockTotal: true,
+        precioVenta: true,
+        fechaVencimiento: true
     })
 )
 
-export type ProductType = z.infer<typeof productoSchema>
+export type ProductType = z.infer<typeof pruductSchema>
 export type ProductListType = z.infer<typeof productListSchema>
 
 

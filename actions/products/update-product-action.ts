@@ -2,6 +2,7 @@
 
 import { prisma } from "@/src/lib/prisma";
 import { ProductoUpdateApiData } from "@/src/schema/SchemaProduts";
+import { getBoliviaTime } from "@/src/utils/date";
 import { revalidatePath } from "next/cache";
 
 export async function updateProductAction(data: ProductoUpdateApiData) {
@@ -93,12 +94,44 @@ export async function updateProductAction(data: ProductoUpdateApiData) {
         };
 
     } catch (error) {
-        console.error('❌ Error al actualizar producto:', error);
+        console.error('Error al actualizar producto:', error);
         
         return {
             ok: false,
             error: error instanceof Error ? error.message : 'Error desconocido al actualizar el producto',
             message: 'Error al actualizar el producto'
+        };
+    }
+}
+
+export async function deleteProductAction(id:number , userId: number) {
+    try {
+        
+        await prisma.producto.update({
+            where: {
+                id: id
+
+            },
+            data: {
+                estado : 0,
+                fechaActualizacion: getBoliviaTime(),
+                usuarioActualizacion:userId
+
+            }
+        })
+
+        return {
+            ok: true,
+            message: 'Producto eliminado exitosamente'
+        };
+
+    } catch (error) {
+        console.error('Error al eliminar producto:', error);
+        
+        return {
+            ok: false,
+            error: error instanceof Error ? error.message : 'Error desconocido al eliminar el producto',
+            message: 'Error al eliminar el producto'
         };
     }
 }

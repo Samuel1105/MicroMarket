@@ -93,9 +93,7 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
     icon: <Icon icon="lucide:settings" width="24" height="24" />,
     submenu: true,
     subMenuItems: [
-      { title: 'General', path: '/dashboard/configuracion/general', roles: [1] },
-      { title: 'Empresa', path: '/dashboard/configuracion/empresa', roles: [1] },
-      { title: 'Facturación', path: '/dashboard/configuracion/facturacion', roles: [1] },
+      { title: 'U. Medidas', path: '/Dashboard/Config/Unit', roles: [1,2] },
     ],
     roles: [1], // Solo admin
   },
