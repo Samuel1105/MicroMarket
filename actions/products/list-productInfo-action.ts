@@ -41,7 +41,7 @@ export async function createUnidadMedida(data: { nombre: string; abreviatura: st
 
         if (!validatedData.success) {
             return {
-                error: validatedData.error.errors[0]?.message || "Datos inválidos"
+                error: validatedData.error.issues[0]?.message || "Datos inválidos"
             }
         }
 
