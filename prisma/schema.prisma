@@ -1,0 +1,251 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+model Categoria {
+  id                     Int        @id(map: "PK__Categori__3213E83FA6D43896") @default(autoincrement()) @db.TinyInt
+  nombre                 String     @db.NVarChar(50)
+  estado                 Int?       @default(1, map: "DF__Categoria__estad__37A5467C") @db.TinyInt
+  fechaRegistro          DateTime?  @default(now(), map: "DF__Categoria__fecha__38996AB5") @db.DateTime
+  usuarioIdRegistro      Int?       @db.TinyInt
+  fechaActualizacion     DateTime?  @db.DateTime
+  usuarioIdActualizacion Int?       @db.TinyInt
+  Producto               Producto[]
+}
+
+model Cliente {
+  id                     Int       @id(map: "PK__Cliente__3213E83F993E9587") @default(autoincrement())
+  carnet                 String    @db.NVarChar(20)
+  nombre                 String    @db.NVarChar(100)
+  correo                 String    @db.NVarChar(100)
+  estado                 Int?      @default(1, map: "DF_Cliente_estado") @db.TinyInt
+  fechaRegistro          DateTime? @default(now(), map: "DF__Cliente__fechaRe__74AE54BC") @db.DateTime
+  usuarioIdRegistro      Int?      @db.TinyInt
+  fechaActualizacion     DateTime? @db.DateTime
+  usuarioIdActualizacion Int?      @db.TinyInt
+  Venta                  Venta[]
+}
+
+model CodigoBarrasItem {
+  id              Int            @id(map: "PK__CodigoBa__3213E83F089AA94A") @default(autoincrement())
+  stockVentaID    Int
+  codigoBarras    String         @unique(map: "UQ__CodigoBa__42674CE2AEC47C92") @db.NVarChar(50)
+  estado          Int?           @default(1, map: "DF__CodigoBar__estad__6FE99F9F") @db.TinyInt
+  fechaRegistro   DateTime?      @default(now(), map: "DF__CodigoBar__fecha__70DDC3D8") @db.DateTime
+  usuarioRegistro Int            @db.TinyInt
+  StockVenta      StockVenta     @relation(fields: [stockVentaID], references: [id], onUpdate: NoAction, map: "FK__CodigoBar__stock__71D1E811")
+  DetalleVenta    DetalleVenta[]
+}
+
+model Compra {
+  id                Int             @id(map: "PK__Compra__3213E83FBB0905E1") @default(autoincrement())
+  numeroCompra      String?         @db.NVarChar(50)
+  proveedorID       Int             @db.SmallInt
+  subtotal          Decimal         @db.Decimal(12, 2)
+  descuento         Decimal?        @default(0, map: "DF__Compra__descuent__4F7CD00D") @db.Decimal(12, 2)
+  total             Decimal         @db.Decimal(12, 2)
+  estado            Int?            @default(1, map: "DF__Compra__estado__5165187F") @db.TinyInt
+  usuarioIdRegistro Int             @db.TinyInt
+  fechaRegistro     DateTime?       @default(now(), map: "DF__Compra__fechaReg__52593CB8") @db.DateTime
+  Proveedor         Proveedor       @relation(fields: [proveedorID], references: [id], onUpdate: NoAction, map: "FK__Compra__proveedo__534D60F1")
+  DetalleCompra     DetalleCompra[]
+}
+
+model ConversionUnidad {
+  id                                                          Int          @id(map: "PK__Conversi__3213E83F898892B5") @default(autoincrement())
+  productoID                                                  Int          @db.SmallInt
+  unidadOrigenID                                              Int          @db.TinyInt
+  unidadDestinoID                                             Int          @db.TinyInt
+  factorConversion                                            Decimal      @db.Decimal(8, 2)
+  precioVentaUnitario                                         Decimal?     @db.Decimal(10, 2)
+  estado                                                      Int?         @default(1, map: "DF__Conversio__estad__49C3F6B7") @db.TinyInt
+  Producto                                                    Producto     @relation(fields: [productoID], references: [id], onUpdate: NoAction, map: "FK__Conversio__produ__4AB81AF0")
+  UnidadMedida_ConversionUnidad_unidadOrigenIDToUnidadMedida  UnidadMedida @relation("ConversionUnidad_unidadOrigenIDToUnidadMedida", fields: [unidadOrigenID], references: [id], onUpdate: NoAction, map: "FK__Conversio__unida__4BAC3F29")
+  UnidadMedida_ConversionUnidad_unidadDestinoIDToUnidadMedida UnidadMedida @relation("ConversionUnidad_unidadDestinoIDToUnidadMedida", fields: [unidadDestinoID], references: [id], onUpdate: NoAction, map: "FK__Conversio__unida__4CA06362")
+}
+
+model DetalleCompra {
+  id               Int          @id(map: "PK__DetalleC__3213E83FCC90BE09") @default(autoincrement())
+  compraID         Int
+  productoID       Int          @db.SmallInt
+  unidadMedidaID   Int          @db.TinyInt
+  cantidadComprada Decimal      @db.Decimal(8, 2)
+  precioUnitario   Decimal      @db.Decimal(10, 2)
+  subtotal         Decimal      @db.Decimal(12, 2)
+  descuento        Decimal?     @default(0, map: "DF__DetalleCo__descu__5629CD9C") @db.Decimal(12, 2)
+  total            Decimal      @db.Decimal(12, 2)
+  estado           Int?         @default(1, map: "DF__DetalleCo__estad__571DF1D5") @db.TinyInt
+  Compra           Compra       @relation(fields: [compraID], references: [id], onUpdate: NoAction, map: "FK__DetalleCo__compr__5812160E")
+  Producto         Producto     @relation(fields: [productoID], references: [id], onUpdate: NoAction, map: "FK__DetalleCo__produ__59063A47")
+  UnidadMedida     UnidadMedida @relation(fields: [unidadMedidaID], references: [id], onUpdate: NoAction, map: "FK__DetalleCo__unida__59FA5E80")
+  Lote             Lote[]
+}
+
+model DetalleVenta {
+  id                   Int               @id(map: "PK__DetalleV__3213E83FF8F4EC8D") @default(autoincrement())
+  ventaID              Int
+  stockVentaID         Int
+  codigoBarrasItemID   Int?
+  cantidadVendida      Decimal           @db.Decimal(8, 2)
+  cantidadUnidadesBase Decimal           @db.Decimal(8, 2)
+  precioUnitario       Decimal           @db.Decimal(10, 2)
+  subtotal             Decimal           @db.Decimal(12, 2)
+  descuento            Decimal?          @default(0, map: "DF__DetalleVe__descu__7F2BE32F") @db.Decimal(12, 2)
+  total                Decimal           @db.Decimal(12, 2)
+  CodigoBarrasItem     CodigoBarrasItem? @relation(fields: [codigoBarrasItemID], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK__DetalleVe__codig__02084FDA")
+  StockVenta           StockVenta        @relation(fields: [stockVentaID], references: [id], onUpdate: NoAction, map: "FK__DetalleVe__stock__01142BA1")
+  Venta                Venta             @relation(fields: [ventaID], references: [id], onUpdate: NoAction, map: "FK__DetalleVe__venta__00200768")
+}
+
+model Lote {
+  id                          Int                 @id(map: "PK__Lote__3213E83F99775FCC") @default(autoincrement())
+  numeroLote                  String              @db.NVarChar(50)
+  productoID                  Int                 @db.SmallInt
+  detalleCompraID             Int
+  fechaVencimiento            DateTime?           @db.DateTime
+  cantidadInicialUnidadesBase Decimal             @db.Decimal(8, 2)
+  estado                      Int?                @default(1, map: "DF__Lote__estado__5CD6CB2B") @db.TinyInt
+  fechaRegistro               DateTime?           @default(now(), map: "DF__Lote__fechaRegis__5DCAEF64") @db.DateTime
+  usuarioIdRegistro           Int                 @db.TinyInt
+  DetalleCompra               DetalleCompra       @relation(fields: [detalleCompraID], references: [id], onUpdate: NoAction, map: "FK__Lote__detalleCom__5FB337D6")
+  Producto                    Producto            @relation(fields: [productoID], references: [id], onUpdate: NoAction, map: "FK__Lote__productoID__5EBF139D")
+  MovimientoAlmacen           MovimientoAlmacen[]
+  StockVenta                  StockVenta[]
+}
+
+model MovimientoAlmacen {
+  id                   Int          @id(map: "PK__Movimien__3213E83FF3708EED") @default(autoincrement())
+  tipoMovimiento       Int          @db.TinyInt
+  productoID           Int          @db.SmallInt
+  loteID               Int?
+  unidadMedidaID       Int          @db.TinyInt
+  cantidad             Decimal      @db.Decimal(8, 2)
+  cantidadUnidadesBase Decimal      @db.Decimal(8, 2)
+  referenciaID         Int?
+  tipoReferencia       Int?         @db.TinyInt
+  observaciones        String?      @db.NVarChar(200)
+  fechaRegistro        DateTime?    @default(now(), map: "DF__Movimient__fecha__628FA481") @db.DateTime
+  usuarioIdRegistro    Int          @db.TinyInt
+  Lote                 Lote?        @relation(fields: [loteID], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK__Movimient__loteI__6477ECF3")
+  Producto             Producto     @relation(fields: [productoID], references: [id], onUpdate: NoAction, map: "FK__Movimient__produ__6383C8BA")
+  UnidadMedida         UnidadMedida @relation(fields: [unidadMedidaID], references: [id], onUpdate: NoAction, map: "FK__Movimient__unida__656C112C")
+}
+
+model Persona {
+  id                     Int       @id(map: "PK__Usuario__3213E83F868220B9") @default(autoincrement()) @db.TinyInt
+  primerNombre           String    @db.NVarChar(50)
+  segundoNombre          String?   @db.NVarChar(50)
+  apellidoPaterno        String    @db.NVarChar(50)
+  apellidoMaterno        String    @db.NVarChar(50)
+  correo                 String    @db.NVarChar(100)
+  celular                Int
+  contrase_a             String    @map("contraseña") @db.NVarChar(255)
+  rol                    Int       @db.TinyInt
+  estado                 Int?      @default(1, map: "DF__Usuario__estado__05D8E0BE") @db.TinyInt
+  fechaRegistro          DateTime? @default(now(), map: "DF__Usuario__fechaRe__06CD04F7") @db.DateTime
+  usuarioIdRegistro      Int?      @db.TinyInt
+  fechaActualizacion     DateTime? @db.DateTime
+  usuarioIdActualizacion Int?      @db.TinyInt
+}
+
+model Producto {
+  id                   Int                 @id(map: "PK__Producto__3213E83F29B007B6") @default(autoincrement()) @db.SmallInt
+  nombre               String              @db.NVarChar(100)
+  descripcion          String?             @db.NVarChar(200)
+  categoriaID          Int                 @db.TinyInt
+  proveedorID          Int                 @db.SmallInt
+  unidadBaseID         Int                 @db.TinyInt
+  estado               Int?                @default(1, map: "DF__Producto__estado__4316F928") @db.TinyInt
+  fechaRegistro        DateTime?           @default(now(), map: "DF__Producto__fechaR__440B1D61") @db.DateTime
+  usuarioRegistro      Int                 @db.TinyInt
+  fechaActualizacion   DateTime?           @db.DateTime
+  usuarioActualizacion Int?                @db.TinyInt
+  ConversionUnidad     ConversionUnidad[]
+  DetalleCompra        DetalleCompra[]
+  Lote                 Lote[]
+  MovimientoAlmacen    MovimientoAlmacen[]
+  Categoria            Categoria           @relation(fields: [categoriaID], references: [id], onUpdate: NoAction, map: "FK__Producto__catego__44FF419A")
+  Proveedor            Proveedor           @relation(fields: [proveedorID], references: [id], onUpdate: NoAction, map: "FK__Producto__provee__45F365D3")
+  UnidadMedida         UnidadMedida        @relation(fields: [unidadBaseID], references: [id], onUpdate: NoAction, map: "FK__Producto__unidad__46E78A0C")
+  StockVenta           StockVenta[]
+}
+
+model Proveedor {
+  id                     Int        @id(map: "PK__Proveedo__3213E83F7A55648D") @default(autoincrement()) @db.SmallInt
+  nombre                 String     @db.NVarChar(100)
+  celular                Int?
+  correo                 String?    @db.NVarChar(100)
+  direccion              String?    @db.NVarChar(200)
+  estado                 Int?       @default(1, map: "DF__Proveedor__estad__3B75D760") @db.TinyInt
+  fechaRegistro          DateTime?  @default(now(), map: "DF__Proveedor__fecha__3C69FB99") @db.DateTime
+  usuarioIdRegistro      Int?       @db.TinyInt
+  fechaActualizacion     DateTime?  @db.DateTime
+  usuarioIdActualizacion Int?       @db.TinyInt
+  Compra                 Compra[]
+  Producto               Producto[]
+}
+
+model StockVenta {
+  id                   Int                @id(map: "PK__StockVen__3213E83FDCFD6BDB") @default(autoincrement())
+  productoID           Int                @db.SmallInt
+  loteID               Int?
+  unidadMedidaID       Int                @db.TinyInt
+  cantidadDisponible   Decimal            @db.Decimal(8, 2)
+  cantidadUnidadesBase Decimal            @db.Decimal(8, 2)
+  precioVenta          Decimal            @db.Decimal(10, 2)
+  fechaVencimiento     DateTime?          @db.DateTime
+  estado               Int?               @default(1, map: "DF__StockVent__estad__68487DD7") @db.TinyInt
+  fechaRegistro        DateTime?          @default(now(), map: "DF__StockVent__fecha__693CA210") @db.DateTime
+  usuarioRegistro      Int                @db.TinyInt
+  CodigoBarrasItem     CodigoBarrasItem[]
+  DetalleVenta         DetalleVenta[]
+  Lote                 Lote?              @relation(fields: [loteID], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK__StockVent__loteI__6B24EA82")
+  Producto             Producto           @relation(fields: [productoID], references: [id], onUpdate: NoAction, map: "FK__StockVent__produ__6A30C649")
+  UnidadMedida         UnidadMedida       @relation(fields: [unidadMedidaID], references: [id], onUpdate: NoAction, map: "FK__StockVent__unida__6C190EBB")
+}
+
+model sysdiagrams {
+  name         String @db.NVarChar(128)
+  principal_id Int
+  diagram_id   Int    @id(map: "PK__sysdiagr__C2B05B6117B5E6B5") @default(autoincrement())
+  version      Int?
+  definition   Bytes?
+
+  @@unique([principal_id, name], map: "UK_principal_name")
+}
+
+model UnidadMedida {
+  id                                                              Int                 @id(map: "PK__UnidadMe__3213E83F49580636") @default(autoincrement()) @db.TinyInt
+  nombre                                                          String              @db.NVarChar(50)
+  abreviatura                                                     String?             @db.NVarChar(10)
+  estado                                                          Int?                @default(1, map: "DF__UnidadMed__estad__3F466844") @db.TinyInt
+  ConversionUnidad_ConversionUnidad_unidadOrigenIDToUnidadMedida  ConversionUnidad[]  @relation("ConversionUnidad_unidadOrigenIDToUnidadMedida")
+  ConversionUnidad_ConversionUnidad_unidadDestinoIDToUnidadMedida ConversionUnidad[]  @relation("ConversionUnidad_unidadDestinoIDToUnidadMedida")
+  DetalleCompra                                                   DetalleCompra[]
+  MovimientoAlmacen                                               MovimientoAlmacen[]
+  Producto                                                        Producto[]
+  StockVenta                                                      StockVenta[]
+}
+
+model Venta {
+  id              Int            @id(map: "PK__Venta__3213E83F096AFCC7") @default(autoincrement())
+  numeroVenta     String?        @db.NVarChar(50)
+  clienteID       Int
+  subtotal        Decimal        @db.Decimal(12, 2)
+  descuento       Decimal?       @default(0, map: "DF__Venta__descuento__778AC167") @db.Decimal(12, 2)
+  impuestos       Decimal?       @default(0, map: "DF__Venta__impuestos__787EE5A0") @db.Decimal(12, 2)
+  total           Decimal        @db.Decimal(12, 2)
+  montoRecibido   Decimal        @db.Decimal(12, 2)
+  cambio          Decimal        @db.Decimal(12, 2)
+  metodoPago      Int?           @default(1, map: "DF__Venta__metodoPag__797309D9") @db.TinyInt
+  estado          Int?           @default(1, map: "DF__Venta__estado__7A672E12") @db.TinyInt
+  fechaVenta      DateTime?      @default(now(), map: "DF__Venta__fechaVent__7B5B524B") @db.DateTime
+  usuarioRegistro Int            @db.TinyInt
+  DetalleVenta    DetalleVenta[]
+  Cliente         Cliente        @relation(fields: [clienteID], references: [id], onUpdate: NoAction, map: "FK__Venta__clienteID__7C4F7684")
+}
