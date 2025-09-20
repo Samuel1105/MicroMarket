@@ -1,9 +1,7 @@
-'use server'
+"use server";
 import { prisma } from "@/src/lib/prisma";
 import { ConversionForm, ProductoCreate } from "@/src/schema/SchemaProduts";
 import { getBoliviaTime } from "@/src/utils/date";
-
-
 
 // type ConversionInput = {
 //   unidadOrigenID: number;
@@ -23,13 +21,14 @@ export async function createProductAction({
   return prisma.$transaction(async (tx) => {
     // Reglas mínimas para la conversión base (debe ser la primera)
     const base = conversiones[0];
+
     if (
       base.unidadOrigenID !== producto.unidadBaseID ||
       base.unidadDestinoID !== base.unidadOrigenID ||
       base.factorConversion !== 1
     ) {
       throw new Error(
-        'La primera conversión debe ser la base: origen = destino = unidadBaseID y factor = 1.'
+        "La primera conversión debe ser la base: origen = destino = unidadBaseID y factor = 1.",
       );
     }
 
@@ -56,6 +55,6 @@ export async function createProductAction({
       include: { ConversionUnidad: true },
     });
 
-    return { ok: true};
+    return { ok: true };
   });
 }

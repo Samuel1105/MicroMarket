@@ -1,5 +1,5 @@
-'use client';
-import React, { createContext, useContext, useEffect, useState } from 'react';
+"use client";
+import React, { createContext, useContext, useEffect, useState } from "react";
 
 interface User {
   id: number;
@@ -25,7 +25,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -33,15 +35,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     // Verificar si hay un usuario guardado en localStorage
     const checkAuth = () => {
-      const savedUser = localStorage.getItem('user');
-      
+      const savedUser = localStorage.getItem("user");
+
       if (savedUser) {
         try {
           const userData = JSON.parse(savedUser);
+
           setUser(userData);
           setIsAuthenticated(true);
         } catch (error) {
-          console.error('Error parsing user data:', error);
+          console.error("Error parsing user data:", error);
           logout();
         }
       }
@@ -54,17 +57,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = (userData: User) => {
     setUser(userData);
     setIsAuthenticated(true);
-    localStorage.setItem('user', JSON.stringify(userData));
+    localStorage.setItem("user", JSON.stringify(userData));
   };
 
   const logout = () => {
     setUser(null);
     setIsAuthenticated(false);
-    localStorage.removeItem('user');
+    localStorage.removeItem("user");
   };
 
   const hasRole = (allowedRoles: number[]): boolean => {
     if (!user) return false;
+
     return allowedRoles.includes(user.rol);
   };
 
@@ -73,15 +77,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      login,
-      logout,
-      isAuthenticated,
-      hasRole,
-      getUserRole,
-      isLoading
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        login,
+        logout,
+        isAuthenticated,
+        hasRole,
+        getUserRole,
+        isLoading,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -89,8 +95,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
+
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
+
   return context;
 };

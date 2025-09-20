@@ -1,17 +1,23 @@
-'use client';
-import { useAuth } from '@/app/context/AuthContext';
-import Link from 'next/link';
+"use client";
+import Link from "next/link";
+
+import { useAuth } from "@/app/context/AuthContext";
 
 export default function UnauthorizedPage() {
   const { user } = useAuth();
 
   const getRoleName = (rol: number) => {
     switch (rol) {
-      case 1: return 'Administrador';
-      case 3: return 'Almacen';
-      case 4: return 'Reportes';
-      case 5: return 'Compras';
-      default: return 'Usuario';
+      case 1:
+        return "Administrador";
+      case 3:
+        return "Almacen";
+      case 4:
+        return "Reportes";
+      case 5:
+        return "Compras";
+      default:
+        return "Usuario";
     }
   };
 
@@ -26,12 +32,13 @@ export default function UnauthorizedPage() {
         </p>
         {user && (
           <p className="text-lg text-gray-500 mb-8">
-            Tu rol actual: <span className="font-semibold">{getRoleName(user.rol)}</span>
+            Tu rol actual:{" "}
+            <span className="font-semibold">{getRoleName(user.rol)}</span>
           </p>
         )}
         <Link
-          href="/Dashboard"
           className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition-colors"
+          href="/Dashboard"
         >
           Volver al Dashboard
         </Link>

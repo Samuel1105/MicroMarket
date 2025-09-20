@@ -1,10 +1,11 @@
-import { StateCreator } from "zustand"
-import { DetailPurchase } from "../schema/SchemaPurchase"
+import { StateCreator } from "zustand";
+
+import { DetailPurchase } from "../schema/SchemaPurchase";
 
 export type PurchaseSliceType = {
-    detailPurchase: DetailPurchase[]
-}
+  detailPurchase: DetailPurchase[];
+};
 
-export const createPurchaseSlice : StateCreator<PurchaseSliceType> = () => ({
-    detailPurchase: []
-})
+export const createPurchaseSlice: StateCreator<PurchaseSliceType> = () => ({
+  detailPurchase: [],
+});

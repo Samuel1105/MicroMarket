@@ -1,12 +1,7 @@
-"use client"
+"use client";
 
-import { ToastContainer } from "react-toastify"
-
-
-
+import { ToastContainer } from "react-toastify";
 
 export default function ToastNotification() {
-  return (
-    <ToastContainer pauseOnFocusLoss={false} />
-  )
+  return <ToastContainer pauseOnFocusLoss={false} />;
 }

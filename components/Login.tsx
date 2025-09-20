@@ -1,4 +1,4 @@
-'use client'
+"use client";
 import {
   Card,
   CardBody,
@@ -6,12 +6,13 @@ import {
   Divider,
   Input,
   Button,
-  CircularProgress
+  CircularProgress,
 } from "@heroui/react";
-import Image from 'next/image';
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState, FormEvent } from "react";
 import { toast } from "react-toastify";
+
 import { handleLoginAction } from "@/actions/user/login-user-action";
 import { useAuth } from "@/app/context/AuthContext";
 
@@ -27,19 +28,20 @@ export default function Login() {
     setIsSubmitting(true);
 
     const formData = new FormData();
+
     formData.append("email", email);
     formData.append("password", password);
 
     try {
       const result = await handleLoginAction(formData);
-      
+
       if (result.success && result.data) {
         toast.success(result.data.message);
         login(result.data.data);
         router.push(result.redirectTo!);
       } else {
         if (result.errors) {
-          result.errors.forEach(issue => toast.error(issue.message));
+          result.errors.forEach((issue) => toast.error(issue.message));
         } else {
           toast.error(result.error || "Ocurrió un error desconocido");
         }
@@ -69,43 +71,49 @@ export default function Login() {
         <Divider />
         <CardBody as="form" onSubmit={handleLogin}>
           <div className="mb-4">
-            <label htmlFor="email" className="block text-sm font-medium text-zinc-700">
+            <label
+              className="block text-sm font-medium text-zinc-700"
+              htmlFor="email"
+            >
               Correo Electrónico
             </label>
             <Input
-              id="email"
-              type="email"
               fullWidth
-              size="lg"
+              required
+              className="mt-1"
+              id="email"
               placeholder="you@gmail.com"
+              size="lg"
+              type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-1"
-              required
             />
           </div>
           <div className="mb-4">
-            <label htmlFor="password" className="block text-sm font-medium text-zinc-700">
+            <label
+              className="block text-sm font-medium text-zinc-700"
+              htmlFor="password"
+            >
               Contraseña
             </label>
             <Input
-              id="password"
-              type="password"
               fullWidth
-              size="lg"
+              required
+              className="mt-1"
+              id="password"
               placeholder="Ingresar 6 caracteres o más"
+              size="lg"
+              type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1"
-              required
             />
           </div>
           <Button
-            type="submit"
             fullWidth
-            color="primary"
             className="w-full bg-orange-500 text-white py-2 rounded-md hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+            color="primary"
             disabled={isSubmitting}
+            type="submit"
           >
             {isSubmitting ? "Iniciando..." : "Iniciar Sesión"}
           </Button>
@@ -117,7 +125,7 @@ export default function Login() {
         </CardBody>
       </Card>
       <div className="hidden md:block">
-        <Image src="/Image/logo.png" width={500} height={400} alt="Logo" />
+        <Image alt="Logo" height={400} src="/Image/logo.png" width={500} />
       </div>
     </main>
   );

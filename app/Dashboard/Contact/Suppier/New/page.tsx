@@ -15,5 +15,5 @@ export default function CreateSupplierPage() {
         </div>
       </div>
     </ProtectedRoute>
-  )
+  );
 }

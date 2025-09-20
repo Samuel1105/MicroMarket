@@ -1,6 +1,7 @@
-import { useAuth } from '@/app/context/AuthContext';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+import { useAuth } from "@/app/context/AuthContext";
 
 export const useRoleAccess = (allowedRoles: number[]) => {
   const { hasRole, isAuthenticated, isLoading } = useAuth();
@@ -10,12 +11,14 @@ export const useRoleAccess = (allowedRoles: number[]) => {
     if (isLoading) return;
 
     if (!isAuthenticated) {
-      router.push('/');
+      router.push("/");
+
       return;
     }
 
     if (!hasRole(allowedRoles)) {
-      router.push('/Dashboard/unauthorized');
+      router.push("/Dashboard/unauthorized");
+
       return;
     }
   }, [isAuthenticated, hasRole, allowedRoles, router, isLoading]);
@@ -23,6 +26,6 @@ export const useRoleAccess = (allowedRoles: number[]) => {
   return {
     hasAccess: isAuthenticated && hasRole(allowedRoles),
     isAuthenticated,
-    isLoading
+    isLoading,
   };
 };

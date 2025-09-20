@@ -1,13 +1,13 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-'use client';
+"use client";
 
-import React, { ReactNode, useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Icon } from '@iconify/react';
-import { motion, useCycle } from 'framer-motion';
-import { SIDENAV_ITEMS } from '@/src/lib/constants';
-import { SideNavItem } from '@/src/types';
+import React, { ReactNode, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Icon } from "@iconify/react";
+import { motion, useCycle } from "framer-motion";
+
+import { SIDENAV_ITEMS } from "@/src/lib/constants";
+import { SideNavItem } from "@/src/types";
 
 type MenuItemWithSubMenuProps = {
   item: SideNavItem;
@@ -16,17 +16,17 @@ type MenuItemWithSubMenuProps = {
 
 const sidebar = {
   open: {
-    clipPath: 'circle(2200px at 100% 0)',
+    clipPath: "circle(2200px at 100% 0)",
     transition: {
-      type: 'spring' as const,
+      type: "spring" as const,
       stiffness: 20,
       restDelta: 2,
     },
   },
   closed: {
-    clipPath: 'circle(0px at 100% 0)',
+    clipPath: "circle(0px at 100% 0)",
     transition: {
-      type: 'spring' as const,
+      type: "spring" as const,
       stiffness: 400,
       damping: 40,
     },
@@ -40,33 +40,36 @@ const HeaderMobile = () => {
 
   useEffect(() => {
     if (isOpen) {
-      document.body.style.overflow = 'hidden';
+      document.body.style.overflow = "hidden";
     } else {
-      document.body.style.overflow = 'auto';
+      document.body.style.overflow = "auto";
     }
+
     return () => {
-      document.body.style.overflow = 'auto';
+      document.body.style.overflow = "auto";
     };
   }, [isOpen]);
 
   return (
     <motion.nav
-      initial={false}
-      animate={isOpen ? 'open' : 'closed'}
-      className={`fixed inset-0 z-50 w-full lg:hidden ${
-        isOpen ? '' : 'pointer-events-none'
-      }`}
       ref={containerRef}
+      animate={isOpen ? "open" : "closed"}
+      className={`fixed inset-0 z-50 w-full lg:hidden ${
+        isOpen ? "" : "pointer-events-none"
+      }`}
+      initial={false}
     >
       <motion.div
         className="absolute inset-0 right-0 w-full bg-white"
         variants={sidebar}
       />
       <motion.ul
-        variants={variants}
         className={`absolute grid w-full gap-3 px-10 py-16 ${
-          isOpen ? 'overflow-y-auto max-h-[calc(100vh-4rem)]' : 'overflow-hidden'
+          isOpen
+            ? "overflow-y-auto max-h-[calc(100vh-4rem)]"
+            : "overflow-hidden"
         }`}
+        variants={variants}
       >
         {SIDENAV_ITEMS.map((item, idx) => {
           const isLastItem = idx === SIDENAV_ITEMS.length - 1;
@@ -78,11 +81,11 @@ const HeaderMobile = () => {
               ) : (
                 <MenuItem>
                   <Link
+                    className={`flex w-full text-2xl ${
+                      item.path === pathname ? "font-bold" : ""
+                    }`}
                     href={item.path}
                     onClick={() => toggleOpen()}
-                    className={`flex w-full text-2xl ${
-                      item.path === pathname ? 'font-bold' : ''
-                    }`}
                   >
                     {item.title}
                   </Link>
@@ -102,29 +105,29 @@ const HeaderMobile = () => {
 
 const MenuToggle = ({ toggle }: { toggle: () => void }) => (
   <button
-    onClick={toggle}
-    className="pointer-events-auto absolute right-4 top-[14px] z-30"
     aria-label="Toggle menu"
+    className="pointer-events-auto absolute right-4 top-[14px] z-30"
+    onClick={toggle}
   >
-    <svg width="20" height="20" viewBox="0 0 23 23">
+    <svg height="20" viewBox="0 0 23 23" width="20">
       <Path
         variants={{
-          closed: { d: 'M 2 2.5 L 20 2.5' },
-          open: { d: 'M 3 16.5 L 17 2.5' },
+          closed: { d: "M 2 2.5 L 20 2.5" },
+          open: { d: "M 3 16.5 L 17 2.5" },
         }}
       />
       <Path
         d="M 2 9.423 L 20 9.423"
+        transition={{ duration: 0.1 }}
         variants={{
           closed: { opacity: 1 },
           open: { opacity: 0 },
         }}
-        transition={{ duration: 0.1 }}
       />
       <Path
         variants={{
-          closed: { d: 'M 2 16.346 L 20 16.346' },
-          open: { d: 'M 3 2.5 L 17 16.346' },
+          closed: { d: "M 2 16.346 L 20 16.346" },
+          open: { d: "M 3 2.5 L 17 16.346" },
         }}
       />
     </svg>
@@ -134,9 +137,9 @@ const MenuToggle = ({ toggle }: { toggle: () => void }) => (
 const Path = (props: any) => (
   <motion.path
     fill="transparent"
-    strokeWidth="2"
     stroke="hsl(0, 0%, 18%)"
     strokeLinecap="round"
+    strokeWidth="2"
     {...props}
   />
 );
@@ -149,7 +152,7 @@ const MenuItem = ({
   children?: ReactNode;
 }) => {
   return (
-    <motion.li variants={MenuItemVariants} className={className}>
+    <motion.li className={className} variants={MenuItemVariants}>
       {children}
     </motion.li>
   );
@@ -166,18 +169,18 @@ const MenuItemWithSubMenu: React.FC<MenuItemWithSubMenuProps> = ({
     <>
       <MenuItem>
         <button
+          aria-expanded={subMenuOpen}
           className="flex w-full text-2xl"
           onClick={() => setSubMenuOpen(!subMenuOpen)}
-          aria-expanded={subMenuOpen}
         >
           <div className="flex flex-row justify-between w-full items-center">
             <span
-              className={`${pathname.includes(item.path) ? 'font-bold' : ''}`}
+              className={`${pathname.includes(item.path) ? "font-bold" : ""}`}
             >
               {item.title}
             </span>
-            <div className={`${subMenuOpen && 'rotate-180'}`}>
-              <Icon icon="lucide:chevron-down" width="24" height="24" />
+            <div className={`${subMenuOpen && "rotate-180"}`}>
+              <Icon height="24" icon="lucide:chevron-down" width="24" />
             </div>
           </div>
         </button>
@@ -189,11 +192,11 @@ const MenuItemWithSubMenu: React.FC<MenuItemWithSubMenuProps> = ({
               return (
                 <MenuItem key={subIdx}>
                   <Link
+                    className={` ${
+                      subItem.path === pathname ? "font-bold" : ""
+                    }`}
                     href={subItem.path}
                     onClick={() => toggleOpen()}
-                    className={` ${
-                      subItem.path === pathname ? 'font-bold' : ''
-                    }`}
                   >
                     {subItem.title}
                   </Link>

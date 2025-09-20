@@ -1,96 +1,100 @@
-import EditProductForm from '@/components/product/EditProductForm'
-import ProductForm from '@/components/product/ProductForm'
-import { ProtectedRoute } from '@/components/ProtectedRoute'
-import Heading from '@/components/ui/Heading'
-import { prisma } from '@/src/lib/prisma'
-import { notFound } from 'next/navigation'
-import React from 'react'
+import { notFound } from "next/navigation";
+import React from "react";
+
+import EditProductForm from "@/components/product/EditProductForm";
+import ProductForm from "@/components/product/ProductForm";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+import Heading from "@/components/ui/Heading";
+import { prisma } from "@/src/lib/prisma";
 
 async function getProductById(id: number) {
-    const producto = await prisma.producto.findUnique({
+  const producto = await prisma.producto.findUnique({
+    where: {
+      id,
+      estado: 1,
+    },
+    include: {
+      ConversionUnidad: {
         where: {
-            id,
-            estado: 1
+          estado: 1,
         },
         include: {
-            ConversionUnidad: {
-                where: {
-                    estado: 1
-                },
-                include: {
-                    UnidadMedida_ConversionUnidad_unidadOrigenIDToUnidadMedida: {
-                        select: {
-                            id: true,
-                            nombre: true,
-                            abreviatura: true
-                        }
-                    },
-                    UnidadMedida_ConversionUnidad_unidadDestinoIDToUnidadMedida: {
-                        select: {
-                            id: true,
-                            nombre: true,
-                            abreviatura: true
-                        }
-                    }
-                },
-                orderBy: {
-                    factorConversion: 'asc'
-                }
+          UnidadMedida_ConversionUnidad_unidadOrigenIDToUnidadMedida: {
+            select: {
+              id: true,
+              nombre: true,
+              abreviatura: true,
             },
-            Categoria: {
-                select: {
-                    id: true,
-                    nombre: true
-                }
+          },
+          UnidadMedida_ConversionUnidad_unidadDestinoIDToUnidadMedida: {
+            select: {
+              id: true,
+              nombre: true,
+              abreviatura: true,
             },
-            Proveedor: {
-                select: {
-                    id: true,
-                    nombre: true
-                }
-            }
-        }
-    })
+          },
+        },
+        orderBy: {
+          factorConversion: "asc",
+        },
+      },
+      Categoria: {
+        select: {
+          id: true,
+          nombre: true,
+        },
+      },
+      Proveedor: {
+        select: {
+          id: true,
+          nombre: true,
+        },
+      },
+    },
+  });
 
-    if (!producto) {
-        notFound()
-    }
+  if (!producto) {
+    notFound();
+  }
 
-    // Destructurar para excluir ConversionUnidad
-    const { ConversionUnidad, ...productoSinConversion } = producto;
+  // Destructurar para excluir ConversionUnidad
+  const { ConversionUnidad, ...productoSinConversion } = producto;
 
-    // Transformar los datos para que coincidan con el tipo esperado
-    return {
-        ...productoSinConversion,
-        conversiones: ConversionUnidad.map(conversion => ({
-            id: conversion.id,
-            unidadOrigenID: conversion.unidadOrigenID,
-            unidadDestinoID: conversion.unidadDestinoID,
-            factorConversion: Number(conversion.factorConversion),
-            precioVentaUnitario: Number(conversion.precioVentaUnitario || 0),
-            estado: conversion.estado || 1,
-            unidadOrigen: conversion.UnidadMedida_ConversionUnidad_unidadOrigenIDToUnidadMedida || {
-                id: 0,
-                nombre: '',
-                abreviatura: null
-            }
-        }))
-    }
+  // Transformar los datos para que coincidan con el tipo esperado
+  return {
+    ...productoSinConversion,
+    conversiones: ConversionUnidad.map((conversion) => ({
+      id: conversion.id,
+      unidadOrigenID: conversion.unidadOrigenID,
+      unidadDestinoID: conversion.unidadDestinoID,
+      factorConversion: Number(conversion.factorConversion),
+      precioVentaUnitario: Number(conversion.precioVentaUnitario || 0),
+      estado: conversion.estado || 1,
+      unidadOrigen:
+        conversion.UnidadMedida_ConversionUnidad_unidadOrigenIDToUnidadMedida || {
+          id: 0,
+          nombre: "",
+          abreviatura: null,
+        },
+    })),
+  };
 }
 
 interface EditProductPageProps {
-    params: Promise<{ id: string }> 
+  params: Promise<{ id: string }>;
 }
 
-export default async function EditProductPage({ params }: EditProductPageProps) {
-    const { id } = await params
-    const producto = await getProductById(+id)
-    
-    return (
-        <ProtectedRoute allowedRoles={[1, 2]}>
-            <Heading>Editando: {producto.nombre}</Heading>
-            <div className="container mx-auto px-4 max-w-6xl">
-                {/* Información del producto
+export default async function EditProductPage({
+  params,
+}: EditProductPageProps) {
+  const { id } = await params;
+  const producto = await getProductById(+id);
+
+  return (
+    <ProtectedRoute allowedRoles={[1, 2]}>
+      <Heading>Editando: {producto.nombre}</Heading>
+      <div className="container mx-auto px-4 max-w-6xl">
+        {/* Información del producto
                 <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                     <div className="flex items-center justify-between">
                         <div>
@@ -113,12 +117,12 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
                     </div>
                 </div> */}
 
-                <div className="w-full pt-5">
-                    <EditProductForm producto={producto}>
-                        <ProductForm producto={producto} />
-                    </EditProductForm>
-                </div>
-            </div>
-        </ProtectedRoute>
-    )
+        <div className="w-full pt-5">
+          <EditProductForm producto={producto}>
+            <ProductForm producto={producto} />
+          </EditProductForm>
+        </div>
+      </div>
+    </ProtectedRoute>
+  );
 }

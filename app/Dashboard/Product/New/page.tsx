@@ -1,4 +1,4 @@
-"use client"
+"use client";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Heading from "@/components/ui/Heading";
 import AddProductForm from "@/components/product/AddProductForm";
@@ -16,5 +16,5 @@ export default function CreateProductPage() {
         </div>
       </div>
     </ProtectedRoute>
-  )
+  );
 }
