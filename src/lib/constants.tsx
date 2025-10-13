@@ -62,7 +62,7 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
       },
       {
         title: "Historial",
-        path: "/Dashboard/compras/historial",
+        path: "/Dashboard/Purchase/List",
         roles: [1, 2],
       },
       {
