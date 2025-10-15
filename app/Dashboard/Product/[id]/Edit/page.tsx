@@ -91,7 +91,7 @@ export default async function EditProductPage({
   const producto = await getProductById(+id);
 
   return (
-    <ProtectedRoute allowedRoles={[1, 2]}>
+    <ProtectedRoute allowedRoles={[1, 3,4]}>
       <Heading>Editando: {producto.nombre}</Heading>
       <div className="container mx-auto px-4 max-w-6xl">
         {/* Información del producto

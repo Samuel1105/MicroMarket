@@ -123,7 +123,8 @@ export const createPurchaseSlice: StateCreator<PurchaseSliceType> = (set, get) =
                     cantidadInicialUnidadesBase: detail.cantidadComprada * detail.factorConversion,
                     usuarioIdRegistro: usuarioId
                 }
-            }))
+            })),
+            numeroCompra: ""
         };
 
         return purchaseRequest;

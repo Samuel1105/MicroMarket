@@ -7,6 +7,7 @@ import {
 import { Icon } from '@iconify/react';
 import { getPurchaseHistory } from '@/actions/purchase/list-purchase-action';
 import PurchaseDetailModal from './PurchaseDetailModal';
+import { useRouter } from 'next/navigation';
 
 interface PurchaseDetail {
   id: number;
@@ -47,6 +48,8 @@ export default function PurchaseHistoryView() {
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { isOpen, onOpen, onClose } = useDisclosure();
+
+  const router = useRouter();
 
   useEffect(() => {
     loadPurchases();
@@ -116,7 +119,7 @@ export default function PurchaseHistoryView() {
     <div className="w-full space-y-6">
       {/* Barra de búsqueda */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-        <div className="w-full md:w-96">
+        <div className="w-full  md:w-96">
           <Input
             placeholder="Buscar por número, proveedor o fecha..."
             value={searchTerm}
@@ -128,6 +131,22 @@ export default function PurchaseHistoryView() {
             onClear={() => setSearchTerm('')}
           />
         </div>
+        
+        <div className='w-full md:w-auto flex justify-end'>
+          <Button
+            color='primary'
+            onPress={() => router.push("/Dashboard/Purchase/New")}
+          >
+            <Icon
+              className="md:mr-2"
+              height="20"
+              icon="heroicons:plus"
+              width="20"
+            />
+            <span className="hidden md:inline">Registrar Compra</span>
+          </Button>
+        </div>
+        
       </div>
 
       {/* Resumen rápido */}

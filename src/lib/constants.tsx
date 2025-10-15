@@ -37,18 +37,18 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
     ],
     roles: [1, 3],
   },
-  // {
-  //   title: 'Ventas',
-  //   path: '/dashboard/ventas',
-  //   icon: <Icon icon="lucide:shopping-cart" width="24" height="24" />,
-  //   submenu: true,
-  //   subMenuItems: [
-  //     { title: 'Nueva Venta', path: '/dashboard/ventas/crear', roles: [1, 2, 3] },
-  //     { title: 'Historial', path: '/dashboard/ventas/historial', roles: [1, 2] },
-  //     { title: 'Facturas', path: '/dashboard/ventas/facturas', roles: [1, 2] },
-  //   ],
-  //   roles: [1, 2, 3],
-  // },
+  {
+    title: 'Ventas',
+    path: '/dashboard/ventas',
+    icon: <Icon icon="lucide:shopping-cart" width="24" height="24" />,
+    submenu: true,
+    subMenuItems: [
+      { title: 'Nueva Venta', path: '/dashboard/ventas/crear', roles: [1, 2, 3] },
+      { title: 'Historial', path: '/dashboard/ventas/historial', roles: [1, 2] },
+      { title: 'Facturas', path: '/dashboard/ventas/facturas', roles: [1, 2] },
+    ],
+    roles: [1, 2, 3],
+  },
   {
     title: "Compras",
     path: "/dashboard/compras",
@@ -56,19 +56,14 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
     submenu: true,
     subMenuItems: [
       {
-        title: "Nueva Compra",
-        path: "/Dashboard/Purchase/New",
-        roles: [1, 3, 4],
-      },
-      {
         title: "Historial",
         path: "/Dashboard/Purchase/List",
-        roles: [1, 2],
+        roles: [1, 3,4],
       },
       {
-        title: "Proveedores",
-        path: "/Dashboard/compras/proveedores",
-        roles: [1, 2],
+        title: "Almacen",
+        path: "/Dashboard/Purchase/Stock",
+        roles: [1, 3,4],
       },
     ],
     roles: [1, 3, 4], // Solo admin y supervisor

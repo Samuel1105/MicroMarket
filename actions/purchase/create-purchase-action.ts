@@ -98,56 +98,56 @@ export async function createPurchaseAction(
         });
         movimientosCreados++;
 
-        // 2.4 CREAR/ACTUALIZAR STOCK DE VENTA
-        // Buscar si ya existe stock para este producto, lote y unidad
-        const stockExistente = await tx.stockVenta.findFirst({
-          where: {
-            productoID: detalle.productoID,
-            loteID: lote.id,
-            unidadMedidaID: detalle.unidadMedidaID,
-            estado: 1,
-          },
-        });
+        // // 2.4 CREAR/ACTUALIZAR STOCK DE VENTA
+        // // Buscar si ya existe stock para este producto, lote y unidad
+        // const stockExistente = await tx.stockVenta.findFirst({
+        //   where: {
+        //     productoID: detalle.productoID,
+        //     loteID: lote.id,
+        //     unidadMedidaID: detalle.unidadMedidaID,
+        //     estado: 1,
+        //   },
+        // });
 
-        if (stockExistente) {
-          // Actualizar stock existente
-          await tx.stockVenta.update({
-            where: { id: stockExistente.id },
-            data: {
-              cantidadDisponible: {
-                increment: detalle.cantidadComprada,
-              },
-              cantidadUnidadesBase: {
-                increment: detalle.lote.cantidadInicialUnidadesBase,
-              },
-            },
-          });
-        } else {
-          // Crear nuevo registro de stock
-          // Obtener la conversión para determinar el precio de venta
-          const conversion = await tx.conversionUnidad.findFirst({
-            where: {
-              productoID: detalle.productoID,
-              unidadOrigenID: detalle.unidadMedidaID,
-              estado: 1,
-            },
-          });
+        // if (stockExistente) {
+        //   // Actualizar stock existente
+        //   await tx.stockVenta.update({
+        //     where: { id: stockExistente.id },
+        //     data: {
+        //       cantidadDisponible: {
+        //         increment: detalle.cantidadComprada,
+        //       },
+        //       cantidadUnidadesBase: {
+        //         increment: detalle.lote.cantidadInicialUnidadesBase,
+        //       },
+        //     },
+        //   });
+        // } else {
+        //   // Crear nuevo registro de stock
+        //   // Obtener la conversión para determinar el precio de venta
+        //   const conversion = await tx.conversionUnidad.findFirst({
+        //     where: {
+        //       productoID: detalle.productoID,
+        //       unidadOrigenID: detalle.unidadMedidaID,
+        //       estado: 1,
+        //     },
+        //   });
 
-          await tx.stockVenta.create({
-            data: {
-              productoID: detalle.productoID,
-              loteID: lote.id,
-              unidadMedidaID: detalle.unidadMedidaID,
-              cantidadDisponible: detalle.cantidadComprada,
-              cantidadUnidadesBase: detalle.lote.cantidadInicialUnidadesBase,
-              precioVenta: conversion?.precioVentaUnitario || detalle.precioUnitario,
-              fechaVencimiento: detalle.lote.fechaVencimiento,
-              estado: 1,
-              fechaRegistro: new Date(),
-              usuarioRegistro: purchaseData.usuarioIdRegistro,
-            },
-          });
-        }
+        //   await tx.stockVenta.create({
+        //     data: {
+        //       productoID: detalle.productoID,
+        //       loteID: lote.id,
+        //       unidadMedidaID: detalle.unidadMedidaID,
+        //       cantidadDisponible: detalle.cantidadComprada,
+        //       cantidadUnidadesBase: detalle.lote.cantidadInicialUnidadesBase,
+        //       precioVenta: conversion?.precioVentaUnitario || detalle.precioUnitario,
+        //       fechaVencimiento: detalle.lote.fechaVencimiento,
+        //       estado: 1,
+        //       fechaRegistro: new Date(),
+        //       usuarioRegistro: purchaseData.usuarioIdRegistro,
+        //     },
+        //   });
+        // }
       }
 
       return {

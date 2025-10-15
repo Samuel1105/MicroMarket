@@ -5,10 +5,15 @@ import { useAppStore } from "@/src/store/useAppStore";
 import { generatePurchaseNumber } from "@/src/store/purchaseSlice";
 import AddDetailPurchase from "./AddDetailPurchase";
 import { createPurchaseAction } from "@/actions/purchase/create-purchase-action";
+import { toast } from "react-toastify";
+import { useAuth } from "@/app/context/AuthContext";
+import { useRouter } from "next/navigation";
 
 export default function AddPurchaseForm({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [purchaseNumber, setPurchaseNumber] = useState(() => generatePurchaseNumber());
+
+  const {user} = useAuth()
 
   // Store actions
   const createPurchase = useAppStore((state) => state.createPurchase);
@@ -22,18 +27,21 @@ export default function AddPurchaseForm({ children }: { children: React.ReactNod
   const totals = calculatePurchaseTotals();
   const canSubmit = selectedSupplierId && detailPurchase.length > 0;
 
+  const router = useRouter()
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!canSubmit) {
-      alert('Por favor selecciona un proveedor y agrega al menos un producto');
+      toast.error("Seleccione un proveedor y agregue al menos un producto.")
+      //alert('Por favor selecciona un proveedor y agrega al menos un producto');
       return;
     }
 
     setIsLoading(true);
 
     try {
-      const usuarioId = 1;
+      const usuarioId = user?.id || 0;
       const purchaseData = await createPurchase(usuarioId);
 
       if (purchaseData) {
@@ -45,18 +53,21 @@ export default function AddPurchaseForm({ children }: { children: React.ReactNod
         const result = await createPurchaseAction(finalPurchaseData);
 
         if (result.success && result.data) {
-          alert(`¡Compra creada exitosamente!\n` +
-                `Número: ${result.data.numeroCompra}\n` +
-                `Total: Bs. ${result.data.total.toFixed(2)}\n` +
-                `Detalles creados: ${result.data.detallesCreados}\n` +
-                `Lotes creados: ${result.data.lotesCreados}\n` +
-                `Movimientos creados: ${result.data.movimientosCreados}`);
+          // alert(`¡Compra creada exitosamente!\n` +
+          //       `Número: ${result.data.numeroCompra}\n` +
+          //       `Total: Bs. ${result.data.total.toFixed(2)}\n` +
+          //       `Detalles creados: ${result.data.detallesCreados}\n` +
+          //       `Lotes creados: ${result.data.lotesCreados}\n` +
+          //       `Movimientos creados: ${result.data.movimientosCreados}`);
+          toast.success("Compra registrada exitosamente")
 
           // Limpiar el formulario
           clearDetailPurchase();
           setSelectedSupplierId(null);
           clearProductos();
           setPurchaseNumber(generatePurchaseNumber());
+
+          router.push('/Dashboard/Purchase/List/')
         } else {
           throw new Error(result.error || 'Error al crear la compra');
         }
@@ -67,7 +78,8 @@ export default function AddPurchaseForm({ children }: { children: React.ReactNod
 
     } catch (error) {
       console.error('Error al crear la compra:', error);
-      alert('Error al crear la compra. Por favor intenta nuevamente.');
+      toast.error('Error al crear la compra. Por favor intenta nuevamente.')
+      //alert('Error al crear la compra. Por favor intenta nuevamente.');
     } finally {
       setIsLoading(false);
     }

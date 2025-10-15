@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Button, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Input, Select, SelectItem, Chip } from '@heroui/react';
 import { ProductoConUnidades, PurchaseDetailItem, UnidadProducto } from '@/src/schema/SchemaPurchase';
+import { Icon } from '@iconify/react';
 
 interface PurchaseDetailTableProps {
   products: ProductoConUnidades[];
@@ -130,13 +131,14 @@ export default function PurchaseDetailTable({ products, details, onDetailsChange
             selectedKeys={selectedUnit ? [selectedUnit.unidadId.toString()] : []}
             onSelectionChange={(keys) => {
               const selectedKey = Array.from(keys)[0] as string;
+              console.log('Selected Unit ID:', selectedKey);
               handleUnitChange(selectedKey);
             }}
             className="w-full"
           >
             {selectedProductData?.unidades.map((unit) => (
               <SelectItem key={unit.unidadId.toString()}>
-                {unit.nombre} ({unit.abreviatura}) - Factor: {unit.factor}
+                {`${unit.nombre} (${unit.abreviatura}) - Factor: ${unit.factor}`}
               </SelectItem>
             )) || []}
           </Select>
@@ -185,7 +187,7 @@ export default function PurchaseDetailTable({ products, details, onDetailsChange
             placeholder="LOTE-XXX-YYYY"
             value={loteNumber}
             onChange={(e) => setLoteNumber(e.target.value)}
-            isRequired
+            //isRequired
             className="w-full"
           />
 
@@ -397,7 +399,7 @@ export default function PurchaseDetailTable({ products, details, onDetailsChange
                           variant="light"
                           onPress={() => removeDetail(detail.id)}
                         >
-                          ×
+                          <Icon color="red" height="24" icon="weui:delete-outlined" width="24" />
                         </Button>
                       </TableCell>
                     </TableRow>
