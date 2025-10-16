@@ -113,7 +113,7 @@ export async function getPurchaseHistory() {
   }
 }
 
-// Action para obtener una compra específica por ID
+// Action para obtener una compra específica por ID No se usa aun
 export async function getPurchaseById(purchaseId: number) {
   try {
     const compra = await prisma.compra.findUnique({

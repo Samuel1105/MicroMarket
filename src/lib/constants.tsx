@@ -43,9 +43,9 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
     icon: <Icon icon="lucide:shopping-cart" width="24" height="24" />,
     submenu: true,
     subMenuItems: [
-      { title: 'Nueva Venta', path: '/dashboard/ventas/crear', roles: [1, 2, 3] },
-      { title: 'Historial', path: '/dashboard/ventas/historial', roles: [1, 2] },
-      { title: 'Facturas', path: '/dashboard/ventas/facturas', roles: [1, 2] },
+      { title: 'Nueva Venta', path: '/Dashboard/Sales/New', roles: [1, 2, 3] },
+      { title: 'Historial', path: '/Dashboard/Sales/History', roles: [1, 2] },
+      { title: 'Facturas', path: '/Dashboard/Sales/facturas', roles: [1, 2] },
     ],
     roles: [1, 2, 3],
   },
