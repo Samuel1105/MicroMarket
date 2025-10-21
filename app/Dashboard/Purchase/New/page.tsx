@@ -5,7 +5,7 @@ import Heading from "@/components/ui/Heading";
 
 export default function Page() {
   return (
-    <ProtectedRoute allowedRoles={[1, 3, 4]}>
+    <ProtectedRoute allowedRoles={[1, 5]}>
       <div className="w-full">
         <Heading>Registrar una nueva Compra</Heading>
         {/* Elimina el max-w fijo y permite full-bleed controlado por padding */}

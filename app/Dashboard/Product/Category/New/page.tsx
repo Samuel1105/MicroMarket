@@ -5,7 +5,7 @@ import Heading from "@/components/ui/Heading";
 
 export default function CreateCategoryView() {
   return (
-    <ProtectedRoute allowedRoles={[1, 2]}>
+    <ProtectedRoute allowedRoles={[1, 3]}>
       <Heading> Nueva Categoria</Heading>
       <div className="container mx-auto px-4 max-w-6xl">
         <div className="w-full pt-5">

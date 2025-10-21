@@ -75,7 +75,7 @@ export default function ContactListView() {
     );
 
   return (
-    <ProtectedRoute allowedRoles={[1, 3, 4]}>
+    <ProtectedRoute allowedRoles={[1, 2]}>
       <Heading> Clientes </Heading>
       <div className="p-4 md:p-8">
         <div className="flex justify-end mb-4">

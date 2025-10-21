@@ -7,7 +7,7 @@ import Heading from "@/components/ui/Heading";
 
 export default function page() {
   return (
-    <ProtectedRoute allowedRoles={[1, 3, 4]}>
+    <ProtectedRoute allowedRoles={[1, 2]}>
       <Heading>Nuevo Cliente</Heading>
       <div className="container mx-auto px-4 max-w-6xl">
         <div className="w-full pt-5">

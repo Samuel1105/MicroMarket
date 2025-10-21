@@ -35,7 +35,7 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
       },
       { title: "Productos", path: "/Dashboard/Product/List", roles: [1, 3] },
     ],
-    roles: [1, 3],
+    roles: [1, 3], // Solo admin y almacen
   },
   {
     title: 'Ventas',
@@ -43,11 +43,10 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
     icon: <Icon icon="lucide:shopping-cart" width="24" height="24" />,
     submenu: true,
     subMenuItems: [
-      { title: 'Nueva Venta', path: '/Dashboard/Sales/New', roles: [1, 2, 3] },
+      { title: 'Nueva Venta', path: '/Dashboard/Sales/New', roles: [1, 2] },
       { title: 'Historial', path: '/Dashboard/Sales/History', roles: [1, 2] },
-      { title: 'Facturas', path: '/Dashboard/Sales/facturas', roles: [1, 2] },
     ],
-    roles: [1, 2, 3],
+    roles: [1, 2], // Solo admin y cajero
   },
   {
     title: "Compras",
@@ -58,15 +57,15 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
       {
         title: "Historial",
         path: "/Dashboard/Purchase/List",
-        roles: [1, 3,4],
+        roles: [1, 5],
       },
       {
         title: "Almacen",
         path: "/Dashboard/Purchase/Stock",
-        roles: [1, 3,4],
+        roles: [1, 5],
       },
     ],
-    roles: [1, 3, 4], // Solo admin y supervisor
+    roles: [1, 5], // Solo admin y compras
   },
   // {
   //   title: 'Reportes',
@@ -80,7 +79,7 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
   //     { title: 'Inventario', path: '/dashboard/reportes/inventario', roles: [1, 2] },
   //     { title: 'Empleados', path: '/dashboard/reportes/empleados', roles: [1, 2] },
   //   ],
-  //   roles: [1, 2], // Solo admin y supervisor
+  //   roles: [1, 4], // Solo admin y reportes
   // },
   {
     title: "Contactos",
@@ -91,15 +90,15 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
       {
         title: "Clientes",
         path: "/Dashboard/Contact/Customer/List",
-        roles: [1, 3, 4],
+        roles: [1,2],
       },
       {
         title: "Proveedores",
         path: "/Dashboard/Contact/Suppier/List",
-        roles: [1, 3, 4],
+        roles: [1,3,5],
       },
     ],
-    roles: [1, 3, 4],
+    roles: [1, 2,3,5], // Solo admin, cajero , almacen y compras 
   },
   {
     title: "Usuarios",

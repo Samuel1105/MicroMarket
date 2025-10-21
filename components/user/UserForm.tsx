@@ -5,7 +5,7 @@ import { Persona } from "@prisma/client";
 export const roles = [
   { key: "1", label: "Administrador" },
   { key: "2", label: "Cajero" },
-  { key: "3", label: "Almacen" },
+  { key: "3", label: "Almacén" },
   { key: "4", label: "Reportes" },
   { key: "5", label: "Compras" },
 ];

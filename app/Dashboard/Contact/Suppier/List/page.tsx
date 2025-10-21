@@ -74,7 +74,7 @@ export default function SupplierListView() {
     );
 
   return (
-    <ProtectedRoute allowedRoles={[1, 3, 4]}>
+    <ProtectedRoute allowedRoles={[1, 3, 5]}>
       <Heading> Proveedores </Heading>
       <div className="p-4 md:p-8">
         <div className="flex justify-end mb-4">

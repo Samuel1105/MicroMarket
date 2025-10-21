@@ -32,7 +32,7 @@ export default async function EditSupplierPage({
   const proveedor = await getSupplierById(+id);
 
   return (
-    <ProtectedRoute allowedRoles={[1, 3, 4]}>
+    <ProtectedRoute allowedRoles={[1, 3, 5]}>
       <Heading>Editando a {proveedor.nombre}</Heading>
       <div className="container mx-auto px-4 max-w-6xl">
         <div className="w-full pt-5">
