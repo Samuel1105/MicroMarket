@@ -385,13 +385,17 @@ export default function SalesView() {
         detalles,
         usuarioId,
       });
-      
+
       if (result.success && result.data) {
         const emailResult = await enviarProformaPorCorreo({
           venta: {
             id: result.data.ventaId,
             numeroVenta: result.data.numeroVenta,
+            subtotal: totales.subtotal,      // ✅ Agregado
+            descuento: totales.descuento,    // ✅ Agregado
             total: result.data.total,
+            montoRecibido: montoRecibido,    // ✅ Agregado
+            cambio: totales.cambio,          // ✅ Agregado
           },
           cliente: {
             nombre: cliente.nombre,
@@ -402,6 +406,7 @@ export default function SalesView() {
             productoNombre: item.productoNombre,
             cantidad: item.cantidad,
             precioUnitario: item.precioUnitario,
+            descuento: item.descuento,       // ✅ Agregado
             total: item.total,
           })),
         });
