@@ -2,12 +2,11 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "micromercado",
   "version": "0.1.0",
-  "identifier": "com.tauri.dev",
+  "identifier": "com.micromercado.anita",
   "build": {
-    "frontendDist": "../out",
     "devUrl": "http://localhost:3000",
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build"
+    "beforeBuildCommand": "echo 'No build needed'"
   },
   "app": {
     "windows": [
@@ -16,7 +15,8 @@
         "width": 800,
         "height": 600,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "url": "https://micro-market.vercel.app"
       }
     ],
     "security": {
