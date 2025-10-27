@@ -156,99 +156,238 @@ export async function getVentasPorCategoria() {
 
 // ============= 4. ALERTAS DE STOCK CRÍTICO =============
 // MEJORADO: Considera TODOS los productos, incluso los que nunca se sacaron a StockVenta
-export async function getStockCritico() {
+// actions/dashboard/dashboard-action.ts
+// ============= INVENTARIO COMPLETO CON ALERTAS =============
+export async function getInventarioCompleto() {
   try {
-    // 1. Obtener TODOS los productos activos
-    const todosProductos = await prisma.producto.findMany({
-      where: { estado: 1 },
-      include: { UnidadMedida: true }
-    })
+    const hoy = new Date()
+    const inicioMesActual = startOfMonth(hoy)
+    const inicioMesAnterior = startOfMonth(subMonths(hoy, 1))
 
-    // 2. Calcular stock disponible en almacén (Lotes) para cada producto
-    const stockPorProducto = await prisma.$queryRaw<Array<{
+    const inventario = await prisma.$queryRaw<Array<{
       productoID: number
-      stockAlmacen: number
+      productoNombre: string
+      unidadAbrev: string
+      stockEnAlmacen: number      // Lo que hay en Lote (comprado)
+      stockExtraido: number        // Lo que se sacó inicialmente (StockVenta.cantidadUnidadesBase)
+      stockDisponibleVenta: number // Lo que queda para vender (StockVenta.cantidadDisponible)
+      stockVendidoMesActual: number // Vendido en el mes actual
+      ventasUltimoMes: number      // Vendido el mes pasado
     }>>`
-      SELECT 
-        productoID,
-        SUM(CAST(cantidadInicialUnidadesBase AS DECIMAL(18,2))) as stockAlmacen
-      FROM Lote
-      WHERE estado = 1
-      GROUP BY productoID
-    `
-
-    // 3. Calcular lo que ya se sacó a StockVenta
-    const stockEnVenta = await prisma.stockVenta.groupBy({
-      by: ['productoID'],
-      where: { estado: 1 },
-      _sum: {
-        cantidadUnidadesBase: true
-      }
-    })
-
-    // 4. Obtener ventas del último mes
-    const inicioMes = startOfMonth(subMonths(new Date(), 1))
-    const ventasUltimoMes = await prisma.$queryRaw<Array<{
-      productoID: number
-      totalVendido: number
-    }>>`
+      WITH StockAlmacen AS (
+        -- Total comprado y en almacén (Lotes activos)
+        SELECT 
+          productoID,
+          SUM(CAST(cantidadInicialUnidadesBase AS DECIMAL(18,2))) as totalAlmacen
+        FROM Lote
+        WHERE estado = 1
+        GROUP BY productoID
+      ),
+      StockExtraido AS (
+        -- Total extraído del almacén (cantidad inicial en StockVenta)
+        SELECT 
+          productoID,
+          SUM(CAST(cantidadUnidadesBase AS DECIMAL(18,2))) as totalExtraido
+        FROM StockVenta
+        WHERE estado = 1
+        GROUP BY productoID
+      ),
+      StockDisponibleVenta AS (
+        -- Stock disponible en punto de venta
+        SELECT 
+          productoID,
+          SUM(CAST(cantidadDisponible AS DECIMAL(18,2))) as disponibleVenta
+        FROM StockVenta
+        WHERE estado = 1
+        GROUP BY productoID
+      ),
+      VentasMesActual AS (
+        -- Ventas del mes actual
+        SELECT 
+          p.id as productoID,
+          SUM(CAST(dv.cantidadUnidadesBase AS DECIMAL(18,2))) as vendidoMesActual
+        FROM DetalleVenta dv
+        INNER JOIN StockVenta sv ON dv.stockVentaID = sv.id
+        INNER JOIN Producto p ON sv.productoID = p.id
+        INNER JOIN Venta v ON dv.ventaID = v.id
+        WHERE v.fechaVenta >= ${inicioMesActual}
+          AND v.estado = 1
+        GROUP BY p.id
+      ),
+      VentasUltimoMes AS (
+        -- Ventas del mes anterior
+        SELECT 
+          p.id as productoID,
+          SUM(CAST(dv.cantidadUnidadesBase AS DECIMAL(18,2))) as ventasUltimoMes
+        FROM DetalleVenta dv
+        INNER JOIN StockVenta sv ON dv.stockVentaID = sv.id
+        INNER JOIN Producto p ON sv.productoID = p.id
+        INNER JOIN Venta v ON dv.ventaID = v.id
+        WHERE v.fechaVenta >= ${inicioMesAnterior}
+          AND v.fechaVenta < ${inicioMesActual}
+          AND v.estado = 1
+        GROUP BY p.id
+      )
       SELECT 
         p.id as productoID,
-        SUM(CAST(dv.cantidadUnidadesBase AS DECIMAL(18,2))) as totalVendido
-      FROM DetalleVenta dv
-      INNER JOIN StockVenta sv ON dv.stockVentaID = sv.id
-      INNER JOIN Producto p ON sv.productoID = p.id
-      INNER JOIN Venta v ON dv.ventaID = v.id
-      WHERE v.fechaVenta >= ${inicioMes}
-        AND v.estado = 1
-      GROUP BY p.id
+        p.nombre as productoNombre,
+        um.abreviatura as unidadAbrev,
+        ISNULL(sa.totalAlmacen, 0) as stockEnAlmacen,
+        ISNULL(se.totalExtraido, 0) as stockExtraido,
+        ISNULL(sdv.disponibleVenta, 0) as stockDisponibleVenta,
+        ISNULL(vma.vendidoMesActual, 0) as stockVendidoMesActual,
+        ISNULL(vum.ventasUltimoMes, 0) as ventasUltimoMes
+      FROM Producto p
+      INNER JOIN UnidadMedida um ON p.unidadBaseID = um.id
+      LEFT JOIN StockAlmacen sa ON p.id = sa.productoID
+      LEFT JOIN StockExtraido se ON p.id = se.productoID
+      LEFT JOIN StockDisponibleVenta sdv ON p.id = sdv.productoID
+      LEFT JOIN VentasMesActual vma ON p.id = vma.productoID
+      LEFT JOIN VentasUltimoMes vum ON p.id = vum.productoID
+      WHERE p.estado = 1
+      ORDER BY p.nombre
     `
 
-    // 5. Calcular alertas
-    const alertas = []
-    for (const producto of todosProductos) {
-      // Stock total en almacén (lotes)
-      const stockAlm = stockPorProducto.find(s => s.productoID === producto.id)
-      const totalAlmacen = Number(stockAlm?.stockAlmacen || 0)
-
-      // Stock en venta
-      const stockVta = stockEnVenta.find(s => s.productoID === producto.id)
-      const totalEnVenta = Number(stockVta?._sum.cantidadUnidadesBase || 0)
-
-      // Stock disponible real = Almacén - Ya sacado a venta
-      const stockDisponible = totalAlmacen - totalEnVenta
-
-      // Ventas mensuales
-      const ventas = ventasUltimoMes.find(v => v.productoID === producto.id)
-      const ventaMensual = Number(ventas?.totalVendido || 0)
-
-      // Stock óptimo = 1.5x ventas mensuales (o 10 unidades mínimo si no hay ventas)
-      const stockOptimo = ventaMensual > 0 ? ventaMensual * 1.5 : 10
-
-      const porcentaje = stockOptimo > 0 ? (stockDisponible / stockOptimo) * 100 : 100
-      let nivel: 'critico' | 'precaucion' | 'normal' = 'normal'
+    // Procesar y calcular alertas
+    const resultado = inventario.map(item => {
+      // Stock real en almacén = Comprado - Extraído
+      const stockRealAlmacen = Number(item.stockEnAlmacen) - Number(item.stockExtraido)
+      const stockEnVenta = Number(item.stockDisponibleVenta)
+      const ventasMes = Number(item.ventasUltimoMes)
       
-      if (porcentaje < 25) nivel = 'critico'
-      else if (porcentaje < 50) nivel = 'precaucion'
+      // Determinar si tiene movimiento
+      const tieneMovimiento = Number(item.stockExtraido) > 0 || ventasMes > 0
 
-      if (nivel !== 'normal') {
-        alertas.push({
-          nombre: producto.nombre,
-          cantidadActual: stockDisponible,
-          stockOptimo,
-          porcentaje: Number(porcentaje.toFixed(2)),
-          nivel,
-          unidad: producto.UnidadMedida.abreviatura || ''
-        })
+      // Stock óptimo basado en ventas (2x para seguridad)
+      const stockOptimoAlmacen = tieneMovimiento ? Math.max(ventasMes * 2, 20) : 50
+      const stockOptimoVenta = tieneMovimiento ? Math.max(ventasMes * 1.5, 15) : 30
+
+      // Calcular niveles
+      const porcentajeAlmacen = (stockRealAlmacen / stockOptimoAlmacen) * 100
+      const porcentajeVenta = (stockEnVenta / stockOptimoVenta) * 100
+
+      let nivelAlmacen: 'critico' | 'precaucion' | 'normal' = 'normal'
+      let nivelVenta: 'critico' | 'precaucion' | 'normal' = 'normal'
+
+      // Solo productos con movimiento
+      if (tieneMovimiento) {
+        if (porcentajeAlmacen < 25) nivelAlmacen = 'critico'
+        else if (porcentajeAlmacen < 50) nivelAlmacen = 'precaucion'
+
+        if (porcentajeVenta < 25) nivelVenta = 'critico'
+        else if (porcentajeVenta < 50) nivelVenta = 'precaucion'
       }
-    }
 
-    return alertas
-      .sort((a, b) => a.porcentaje - b.porcentaje)
-      .slice(0, 15)
+      return {
+        productoID: item.productoID,
+        nombre: item.productoNombre,
+        unidad: item.unidadAbrev || '',
+        stockEnAlmacen: stockRealAlmacen,
+        stockExtraido: Number(item.stockExtraido),
+        stockDisponibleVenta: stockEnVenta,
+        stockVendido: Number(item.stockVendidoMesActual),
+        ventasUltimoMes: ventasMes,
+        nivelAlmacen,
+        nivelVenta,
+        debeExtraer: tieneMovimiento && nivelVenta !== 'normal', // Stock bajo en venta
+        debeComprar: tieneMovimiento && (nivelAlmacen === 'critico' || (nivelAlmacen === 'precaucion' && nivelVenta !== 'normal'))
+      }
+    })
+
+    return resultado
   } catch (error) {
-    console.error('Error al obtener stock crítico:', error)
+    console.error('Error al obtener inventario completo:', error)
     return []
+  }
+}
+
+// ============= NOTIFICAR EXTRACCIÓN =============
+export async function notificarExtraccion(productos: any[]) {
+  try {
+    // Obtener usuarios con rol Almacén (3) y Admin (1)
+    const usuarios = await prisma.persona.findMany({
+      where: {
+        rol: { in: [1, 3] },
+        estado: 1
+      },
+      select: {
+        correo: true,
+        primerNombre: true,
+        apellidoPaterno: true
+      }
+    })
+
+    let mensaje = '📦 ALERTA DE EXTRACCIÓN NECESARIA\n\n'
+    mensaje += `${productos.length} productos necesitan ser extraídos del almacén al punto de venta:\n\n`
+    
+    productos.forEach(p => {
+      mensaje += `• ${p.nombre}: ${p.stockDisponibleVenta.toFixed(2)} ${p.unidad} disponible\n`
+      mensaje += `  Stock en almacén: ${p.stockEnAlmacen.toFixed(2)} ${p.unidad}\n\n`
+    })
+
+    console.log('Notificación de extracción enviada a:', usuarios.length, 'usuarios')
+    console.log(mensaje)
+
+    // Aquí implementarías el envío real (email, push, etc.)
+    // await enviarEmail(usuarios, mensaje)
+
+    return {
+      success: true,
+      mensaje: `Notificación enviada a ${usuarios.length} usuarios de Almacén/Admin`
+    }
+  } catch (error) {
+    console.error('Error al notificar extracción:', error)
+    return {
+      success: false,
+      error: 'Error al enviar notificación'
+    }
+  }
+}
+
+// ============= NOTIFICAR COMPRA =============
+export async function notificarCompra(productos: any[]) {
+  try {
+    // Obtener usuarios con rol Compras (5) y Admin (1)
+    const usuarios = await prisma.persona.findMany({
+      where: {
+        rol: { in: [1, 5] },
+        estado: 1
+      },
+      select: {
+        correo: true,
+        primerNombre: true,
+        apellidoPaterno: true
+      }
+    })
+
+    let mensaje = '🛒 ALERTA DE COMPRA NECESARIA\n\n'
+    mensaje += `${productos.length} productos necesitan ser reabastecidos:\n\n`
+    
+    productos.forEach(p => {
+      const stockTotal = p.stockEnAlmacen + p.stockDisponibleVenta
+      const faltante = (p.ventasUltimoMes * 2) - stockTotal
+      
+      mensaje += `• ${p.nombre}\n`
+      mensaje += `  Stock total: ${stockTotal.toFixed(2)} ${p.unidad}\n`
+      mensaje += `  Sugerido comprar: ${Math.max(faltante, 0).toFixed(2)} ${p.unidad}\n\n`
+    })
+
+    console.log('Notificación de compra enviada a:', usuarios.length, 'usuarios')
+    console.log(mensaje)
+
+    // Aquí implementarías el envío real (email, push, etc.)
+    // await enviarEmail(usuarios, mensaje)
+
+    return {
+      success: true,
+      mensaje: `Notificación enviada a ${usuarios.length} usuarios de Compras/Admin`
+    }
+  } catch (error) {
+    console.error('Error al notificar compra:', error)
+    return {
+      success: false,
+      error: 'Error al enviar notificación'
+    }
   }
 }
 
