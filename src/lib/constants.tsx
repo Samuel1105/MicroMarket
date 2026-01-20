@@ -67,20 +67,7 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
     ],
     roles: [1, 5], // Solo admin y compras
   },
-  // {
-  //   title: 'Reportes',
-  //   path: '/dashboard/reportes',
-  //   icon: <Icon icon="lucide:bar-chart-2" width="24" height="24" />,
-  //   submenu: true,
-  //   subMenuItems: [
-  //     { title: 'Estado Financiero', path: '/dashboard/reportes/financiero', roles: [1] },
-  //     { title: 'Rentabilidad', path: '/dashboard/reportes/rentabilidad', roles: [1] },
-  //     { title: 'Ventas', path: '/dashboard/reportes/ventas', roles: [1, 2] },
-  //     { title: 'Inventario', path: '/dashboard/reportes/inventario', roles: [1, 2] },
-  //     { title: 'Empleados', path: '/dashboard/reportes/empleados', roles: [1, 2] },
-  //   ],
-  //   roles: [1, 4], // Solo admin y reportes
-  // },
+  
   {
     title: "Contactos",
     path: "/Contact/List",
@@ -107,12 +94,28 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
     roles: [1], // Solo admin
   },
   {
+    title: 'Reportes',
+    path: '/dashboard/reportes',
+    icon: <Icon icon="lucide:bar-chart-2" width="24" height="24" />,
+    submenu: true,
+    subMenuItems: [
+      { title: 'Estado Financiero', path: '/dashboard/reportes/financiero', roles: [1] },
+      { title: 'Rentabilidad', path: '/dashboard/reportes/rentabilidad', roles: [1] },
+      { title: 'Evolución de ventas', path: '/dashboard/reportes/ventas', roles: [1, 2] },
+      { title: 'Analisis de clientes', path: '/dashboard/reportes/inventario', roles: [1, 2] },
+      { title: 'Almacén de productos', path: '/dashboard/reportes/empleados', roles: [1, 2] },
+      { title: 'Movimiento de almacén', path: '/dashboard/reportes/empleados', roles: [1, 2] },
+      { title: 'Ventas por empleado', path: '/dashboard/reportes/empleados', roles: [1, 2] },
+    ],
+    roles: [1, 4], // Solo admin y reportes
+  },
+  {
     title: "Configuración",
     path: "/dashboard/configuracion",
     icon: <Icon height="24" icon="lucide:settings" width="24" />,
     submenu: true,
     subMenuItems: [
-      { title: "U. Medidas", path: "/Dashboard/Config/Unit", roles: [1, 2] },
+      { title: "U. Medidas", path: "/Dashboard/Config/Unit/List", roles: [1, 2] },
     ],
     roles: [1], // Solo admin
   },
