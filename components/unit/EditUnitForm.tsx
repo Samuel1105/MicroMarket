@@ -63,7 +63,7 @@ export default function EditUnitForm({
                     <Button
                         className="mt-4"
                         color="danger"
-                        onPress={() => router.push("/Dashboard/Contact/Customer/List")}
+                        onPress={() => router.push("/Dashboard/Config/Unit/List")}
                     >
                         Cancelar
                     </Button>

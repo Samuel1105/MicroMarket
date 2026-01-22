@@ -99,7 +99,7 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
     icon: <Icon icon="lucide:bar-chart-2" width="24" height="24" />,
     submenu: true,
     subMenuItems: [
-      { title: 'Estado Financiero', path: '/dashboard/reportes/financiero', roles: [1] },
+      { title: 'Estado Financiero', path: '/Dashboard/Reports/EstadoFinanciero', roles: [1] },
       { title: 'Rentabilidad', path: '/dashboard/reportes/rentabilidad', roles: [1] },
       { title: 'Evolución de ventas', path: '/dashboard/reportes/ventas', roles: [1, 2] },
       { title: 'Analisis de clientes', path: '/dashboard/reportes/inventario', roles: [1, 2] },

@@ -1,4 +1,5 @@
-import { UnitList } from '@/src/schema/SchemaUnit'
+
+import { UnidadMedidaList } from '@/src/schema/SchemaProduts'
 import { Card, CardBody, Link, Chip } from '@heroui/react'
 import { Icon } from '@iconify/react'
 import React from 'react'
@@ -6,7 +7,7 @@ import React from 'react'
 export default function CardMobileUnits({
     items
 }: {
-    items: UnitList
+    items: UnidadMedidaList
 }) {
     return (
         <>
@@ -42,7 +43,7 @@ export default function CardMobileUnits({
                             </div>
                             <Link
                                 className="p-2 rounded-full hover:bg-blue-50 transition-colors flex-shrink-0"
-                                href={`/User/${item.id}/Edit`}
+                                href={`/Dashboard/Config/Unit/${item.id}/Edit`}
                             >
                                 <Icon
                                     color="#0007fc"

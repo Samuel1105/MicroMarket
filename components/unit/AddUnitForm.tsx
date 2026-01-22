@@ -1,8 +1,7 @@
 "use client"
 import { createUnidadMedida } from '@/actions/products/list-productInfo-action';
 import { useAuth } from '@/app/context/AuthContext';
-import { unidadMedidaCreateSchema } from '@/src/schema/SchemaProduts';
-import { UnitCreate } from '@/src/schema/SchemaUnit';
+import { UnidadMedidaCreate, unidadMedidaCreateSchema } from '@/src/schema/SchemaProduts';
 import { Button, Form } from '@heroui/react';
 import { useRouter } from 'next/navigation';
 import React from 'react'
@@ -24,7 +23,7 @@ export default function AddUnitForm({
         return;
       }
   
-      const data: UnitCreate = {
+      const data: UnidadMedidaCreate = {
         nombre: (formData.get("nombre") as string) || "",
         abreviatura: (formData.get("abreviatura") as string) || "",
       
