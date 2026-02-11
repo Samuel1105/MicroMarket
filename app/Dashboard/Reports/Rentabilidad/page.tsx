@@ -59,7 +59,7 @@ type LoteAnalysis = {
   producto: string
   categoria: string
   proveedor: string
-  fechaCompra: Date
+  fechaCompra: Date | null
   fechaVencimiento: Date | null
   inversionTotal: number
   cantidadComprada: number
@@ -592,7 +592,11 @@ export default function ProductProfitabilityAnalysis() {
               <DateRangePicker
                 label="Rango de fechas"
                 value={dateRange}
-                onChange={setDateRange}
+                onChange={(value) => {
+                  if (value) {
+                    setDateRange({ start: value.start, end: value.end })
+                  }
+                }}
                 className="max-w-md"
               />
             </div>
