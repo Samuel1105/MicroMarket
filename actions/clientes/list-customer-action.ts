@@ -15,7 +15,7 @@ export async function ListCustomer() {
       },
     });
     const response = CustomerListSchema.safeParse(clients);
-
+    console.log(clients)
     if (response.success) {
       return {
         data: response.data,

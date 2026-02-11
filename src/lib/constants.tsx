@@ -100,12 +100,12 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
     submenu: true,
     subMenuItems: [
       { title: 'Estado Financiero', path: '/Dashboard/Reports/EstadoFinanciero', roles: [1] },
-      { title: 'Rentabilidad', path: '/dashboard/reportes/rentabilidad', roles: [1] },
+      { title: 'Rentabilidad', path: '/Dashboard/Reports/Rentabilidad', roles: [1] },
       { title: 'Evolución de ventas', path: '/dashboard/reportes/ventas', roles: [1, 2] },
       { title: 'Analisis de clientes', path: '/dashboard/reportes/inventario', roles: [1, 2] },
       { title: 'Almacén de productos', path: '/dashboard/reportes/empleados', roles: [1, 2] },
       { title: 'Movimiento de almacén', path: '/dashboard/reportes/empleados', roles: [1, 2] },
-      { title: 'Ventas por empleado', path: '/dashboard/reportes/empleados', roles: [1, 2] },
+      { title: 'Ventas por vendedor', path: '/dashboard/reportes/empleados', roles: [1, 2] },
     ],
     roles: [1, 4], // Solo admin y reportes
   },

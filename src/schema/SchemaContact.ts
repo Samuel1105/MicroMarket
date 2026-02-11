@@ -4,9 +4,9 @@ import { z } from "zod";
 export const contactSchema = z.object({
   id: z.number(),
   carnet: z
-    .string()
-    .min(7, "Ingrese un carnet valido")
-    .nonempty("El carnet es requerido"),
+    .string(),
+    // .min(7, "Ingrese un carnet valido")
+    // .nonempty("El carnet es requerido"),
   nombre: z.string(),
   celular: z
     .number()
