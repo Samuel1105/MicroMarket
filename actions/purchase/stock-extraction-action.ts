@@ -1,5 +1,6 @@
 "use server";
 import { prisma } from "@/src/lib/prisma";
+import { getBoliviaTime } from "@/src/utils/date";
 
 // Obtener productos disponibles en el almacén (de las compras)
 export async function getAvailableStockForExtraction() {
@@ -205,7 +206,7 @@ export async function extractStockForSale(request: ExtractStockRequest) {
             precioVenta: item.precioVenta,
             fechaVencimiento: lote.fechaVencimiento,
             estado: 1,
-            fechaRegistro: new Date(),
+            fechaRegistro: getBoliviaTime(),
             usuarioRegistro: request.usuarioId,
           }
         });
@@ -221,7 +222,7 @@ export async function extractStockForSale(request: ExtractStockRequest) {
             cantidad: item.cantidad,
             cantidadUnidadesBase: item.cantidadUnidadesBase,
             observaciones: `Salida para venta - Stock ID: ${stockVenta.id}`,
-            fechaRegistro: new Date(),
+            fechaRegistro: getBoliviaTime(),
             usuarioIdRegistro: request.usuarioId,
           }
         });
@@ -245,7 +246,7 @@ export async function extractStockForSale(request: ExtractStockRequest) {
                   stockVentaID: stockVenta.id,
                   codigoBarras: codigo.trim(),
                   estado: 1,
-                  fechaRegistro: new Date(),
+                  fechaRegistro: getBoliviaTime(),
                   usuarioRegistro: request.usuarioId,
                 }
               });

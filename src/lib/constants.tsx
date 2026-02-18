@@ -102,7 +102,7 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
       { title: 'Estado Financiero', path: '/Dashboard/Reports/EstadoFinanciero', roles: [1] },
       { title: 'Rentabilidad', path: '/Dashboard/Reports/Rentabilidad', roles: [1] },
       { title: 'Evolución de ventas', path: '/Dashboard/Reports/EvolucionVentas', roles: [1, 2] },
-      { title: 'Analisis de clientes', path: '/dashboard/reportes/inventario', roles: [1, 2] },
+      { title: 'Analisis de clientes', path: '/Dashboard/Reports/AnalisisClientes', roles: [1, 2] },
       { title: 'Almacén de productos', path: '/dashboard/reportes/empleados', roles: [1, 2] },
       { title: 'Movimiento de almacén', path: '/dashboard/reportes/empleados', roles: [1, 2] },
       { title: 'Ventas por vendedor', path: '/dashboard/reportes/empleados', roles: [1, 2] },

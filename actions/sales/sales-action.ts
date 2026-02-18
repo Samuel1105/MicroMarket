@@ -1,5 +1,6 @@
 "use server";
 import { prisma } from "@/src/lib/prisma";
+import { getBoliviaTime } from "@/src/utils/date";
 
 // ========== BÚSQUEDA DE CLIENTES ==========
 export async function searchClientByCarnet(carnet: string) {
@@ -61,7 +62,7 @@ export async function createClient(data: CreateClientData) {
         nombre: data.nombre,
         correo: data.correo,
         estado: 1,
-        fechaRegistro: new Date(),
+        fechaRegistro: getBoliviaTime(),
         usuarioIdRegistro: data.usuarioIdRegistro,
       },
     });
@@ -325,7 +326,7 @@ export async function processSale(request: ProcessSaleRequest) {
           cambio: request.cambio,
           metodoPago: request.metodoPago || 1,
           estado: 1,
-          fechaVenta: new Date(),
+          fechaVenta: getBoliviaTime(),
           usuarioRegistro: request.usuarioId,
         },
       });
