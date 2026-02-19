@@ -103,9 +103,10 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
       { title: 'Rentabilidad', path: '/Dashboard/Reports/Rentabilidad', roles: [1] },
       { title: 'Evolución de ventas', path: '/Dashboard/Reports/EvolucionVentas', roles: [1, 2] },
       { title: 'Analisis de clientes', path: '/Dashboard/Reports/AnalisisClientes', roles: [1, 2] },
-      { title: 'Almacén de productos', path: '/dashboard/reportes/empleados', roles: [1, 2] },
-      { title: 'Movimiento de almacén', path: '/dashboard/reportes/empleados', roles: [1, 2] },
-      { title: 'Ventas por vendedor', path: '/dashboard/reportes/empleados', roles: [1, 2] },
+      { title: 'Ventas por producto', path: '/Dashboard/Reports/VentasPorProducto', roles: [1, 2] },
+      { title: 'Revisar', path: '/dashboard/reportes/empleados', roles: [1, 2] },
+      { title: 'Movimiento de almacén', path: '/Dashboard/Reports/MovimientoAlmacen', roles: [1, 2] },
+      { title: 'Ventas por vendedor', path: '/Dashboard/Reports/VentasPorVendedor', roles: [1, 2] },
     ],
     roles: [1, 4], // Solo admin y reportes
   },
