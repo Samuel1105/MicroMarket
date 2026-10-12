@@ -1,6 +1,16 @@
 "use server";
 import { prisma } from "@/src/lib/prisma";
+import { cerrarAvisosResueltos } from "@/src/lib/notifications";
 import { getBoliviaTime } from "@/src/utils/date";
+
+/** Fecha de hoy (Bolivia) como YYYY-MM-DD */
+function hoyBolivia() {
+  return getBoliviaTime().toISOString().slice(0, 10);
+}
+
+function estaVencido(fecha: Date | null | undefined) {
+  return !!fecha && fecha.toISOString().slice(0, 10) < hoyBolivia();
+}
 
 // ========== BÚSQUEDA DE CLIENTES ==========
 export async function searchClientByCarnet(carnet: string) {
@@ -31,6 +41,39 @@ export async function searchClientByCarnet(carnet: string) {
       exists: false,
       error: error instanceof Error ? error.message : 'Error desconocido',
     };
+  }
+}
+
+// ========== CLIENTE GENERAL (venta rápida sin datos) ==========
+/** Carnet reservado para las ventas a clientes que no quieren registrarse */
+const CARNET_CLIENTE_GENERAL = "0";
+
+export async function getGeneralClient(usuarioIdRegistro: number) {
+  try {
+    let cliente = await prisma.cliente.findFirst({
+      where: { carnet: CARNET_CLIENTE_GENERAL },
+      select: { id: true, carnet: true, nombre: true, correo: true },
+    });
+
+    if (!cliente) {
+      cliente = await prisma.cliente.create({
+        data: {
+          carnet: CARNET_CLIENTE_GENERAL,
+          nombre: "Cliente general",
+          correo: "",
+          estado: 1,
+          fechaRegistro: getBoliviaTime(),
+          usuarioIdRegistro,
+        },
+        select: { id: true, carnet: true, nombre: true, correo: true },
+      });
+    }
+
+    return { success: true, data: cliente };
+  } catch (error) {
+    console.error("Error al obtener el cliente general:", error);
+
+    return { success: false, data: null, error: error instanceof Error ? error.message : "Error desconocido" };
   }
 }
 
@@ -136,6 +179,14 @@ export async function searchProductByBarcode(barcode: string) {
       };
     }
 
+    if (estaVencido(codigoBarras.StockVenta.fechaVencimiento)) {
+      return {
+        success: false,
+        data: null,
+        error: 'Producto vencido: no se puede vender',
+      };
+    }
+
     // Verificar que haya stock disponible
     if (Number(codigoBarras.StockVenta.cantidadDisponible) <= 0) {
       return {
@@ -189,6 +240,11 @@ export async function getAvailableProductsForSale() {
         cantidadDisponible: {
           gt: 0,
         },
+        // Lo vencido no se ofrece para la venta
+        OR: [
+          { fechaVencimiento: null },
+          { fechaVencimiento: { gte: new Date(hoyBolivia() + 'T00:00:00.000Z') } },
+        ],
       },
       select: {
         id: true,
@@ -200,6 +256,11 @@ export async function getAvailableProductsForSale() {
             id: true,
             nombre: true,
             descripcion: true,
+            Categoria: {
+              select: {
+                nombre: true,
+              },
+            },
           },
         },
         UnidadMedida: {
@@ -236,6 +297,7 @@ export async function getAvailableProductsForSale() {
         id: stock.Producto.id,
         nombre: stock.Producto.nombre,
         descripcion: stock.Producto.descripcion,
+        categoria: stock.Producto.Categoria.nombre,
       },
       unidad: {
         id: stock.UnidadMedida.id,
@@ -346,12 +408,22 @@ export async function processSale(request: ProcessSaleRequest) {
           throw new Error(`Stock ${detalle.stockVentaId} no encontrado`);
         }
 
+        if (estaVencido(stockVenta.fechaVencimiento)) {
+          throw new Error('Hay un producto vencido en la venta: retíralo del carrito');
+        }
+
         if (Number(stockVenta.cantidadDisponible) < detalle.cantidadVendida) {
           throw new Error(
             `Stock insuficiente. Disponible: ${stockVenta.cantidadDisponible}, ` +
             `Solicitado: ${detalle.cantidadVendida}`
           );
         }
+
+        // Unidades base que salen: cantidad vendida × factor de la unidad de este stock
+        // (el stock guarda cuántas unidades base hay en cada unidad de venta)
+        const disponibleActual = Number(stockVenta.cantidadDisponible);
+        const factorUnidad = disponibleActual > 0 ? Number(stockVenta.cantidadUnidadesBase) / disponibleActual : 1;
+        const unidadesBaseVendidas = detalle.cantidadVendida * factorUnidad;
 
         // 2.1 CREAR DETALLE DE VENTA
         await tx.detalleVenta.create({
@@ -360,7 +432,7 @@ export async function processSale(request: ProcessSaleRequest) {
             stockVentaID: detalle.stockVentaId,
             codigoBarrasItemID: detalle.codigoBarrasId || null,
             cantidadVendida: detalle.cantidadVendida,
-            cantidadUnidadesBase: detalle.cantidadUnidadesBase,
+            cantidadUnidadesBase: unidadesBaseVendidas,
             precioUnitario: detalle.precioUnitario,
             subtotal: detalle.subtotal,
             descuento: detalle.descuento || 0,
@@ -371,7 +443,7 @@ export async function processSale(request: ProcessSaleRequest) {
 
         // 2.2 ACTUALIZAR STOCK
         const nuevaCantidad = Number(stockVenta.cantidadDisponible) - detalle.cantidadVendida;
-        const nuevaCantidadBase = Number(stockVenta.cantidadUnidadesBase) - detalle.cantidadUnidadesBase;
+        const nuevaCantidadBase = Number(stockVenta.cantidadUnidadesBase) - unidadesBaseVendidas;
 
         await tx.stockVenta.update({
           where: { id: detalle.stockVentaId },
@@ -406,6 +478,14 @@ export async function processSale(request: ProcessSaleRequest) {
         stocksActualizados,
       };
     });
+
+    // Si esta venta hizo innecesario algún aviso pendiente, se cierra
+    const vendidos = await prisma.stockVenta.findMany({
+      where: { id: { in: request.detalles.map((d) => d.stockVentaId) } },
+      select: { productoID: true },
+    });
+
+    await cerrarAvisosResueltos(vendidos.map((v) => v.productoID));
 
     return {
       success: true,

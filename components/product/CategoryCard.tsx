@@ -1,6 +1,5 @@
-import { Card, CardBody, CardFooter, CardHeader, Link } from "@heroui/react";
+import { Link } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";
-import { Button } from "@heroui/react";
 
 import DeleteCategoryForm from "./DeleteCategoryForm";
 
@@ -18,52 +17,40 @@ export default function CategoryCard({
   return (
     <>
       {categories.map((category) => (
-        <Card
+        <div
           key={category.id}
-          className="hover:shadow-xl transition-shadow duration-300 rounded-xl border border-gray-200"
+          className="rounded-2xl border border-default-200 bg-white shadow-sm hover:shadow-md hover:border-primary-200 transition-all p-4 sm:p-5"
         >
-          <CardHeader className="flex flex-col items-start gap-1 p-6">
-            <h3 className="text-xl font-bold text-default-900">
-              {category.nombre}
-            </h3>
-          </CardHeader>
-          <CardBody className="p-6 pt-0">
-            <div className="flex flex-col items-start gap-1">
-              <p className="text-4xl font-extrabold text-primary-600">
-                {category.cantidadProductos}
-              </p>
-              <p className="text-sm text-default-500">productos disponibles</p>
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-primary-50 text-primary-600 flex items-center justify-center shrink-0">
+              <Icon icon="heroicons:tag" width="22" height="22" />
             </div>
-          </CardBody>
-          <CardFooter className="flex justify-between p-6 pt-0 border-t border-gray-100 mt-auto">
-            <Button
-              as={Link}
-              color="primary"
-              href={`/Dashboard/Contact/Suppier/${category.id}/products`}
-              size="sm"
-              variant="flat"
-            >
-              Ver Productos
-            </Button>
-            <div className="flex gap-2">
+
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-base truncate">{category.nombre}</p>
+            </div>
+
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-secondary-50 text-secondary-700 shrink-0">
+              {category.cantidadProductos}{" "}
+              {category.cantidadProductos === 1 ? "producto" : "productos"}
+            </span>
+
+            <div className="flex items-center gap-2 shrink-0">
               <Link
-                className="transition-transform hover:scale-110"
+                className="w-9 h-9 rounded-lg border border-default-200 flex items-center justify-center text-gray-500 hover:text-primary-600 hover:bg-primary-50 hover:border-primary-300 transition-colors"
                 href={`/Dashboard/Product/Category/${category.id}/Edit`}
               >
-                <Icon
-                  color="#0007fc"
-                  height="24"
-                  icon="iconamoon:edit-thin"
-                  width="24"
-                />
+                <Icon icon="heroicons:pencil-square" width="17" height="17" />
               </Link>
-              <DeleteCategoryForm
-                categoria={category}
-                onDeleteSuccess={onDeleteSuccess}
-              />
+              <div className="w-9 h-9 rounded-lg border border-default-200 flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors">
+                <DeleteCategoryForm
+                  categoria={category}
+                  onDeleteSuccess={onDeleteSuccess}
+                />
+              </div>
             </div>
-          </CardFooter>
-        </Card>
+          </div>
+        </div>
       ))}
     </>
   );

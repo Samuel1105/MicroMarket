@@ -1,200 +1,160 @@
-"use server"
+"use server";
 
-import { prisma } from "@/src/lib/prisma"
+import { prisma } from "@/src/lib/prisma";
+import { diasEnRango, rangoAnterior, rangoReporte } from "@/src/utils/report-dates";
 
-type ProductSalesParams = {
-  startDate?: string
-  endDate?: string
+type Params = { startDate: string; endDate: string };
+
+export type ClaseABC = "A" | "B" | "C";
+
+export type ProductoVendido = {
+  id: number;
+  nombre: string;
+  categoria: string;
+  unidadBase: string;
+  ingresos: number;
+  unidades: number; // en la unidad base del producto
+  ventas: number; // cantidad de ventas (tickets) donde aparece
+  participacion: number; // % de las ventas totales
+  acumulado: number; // % acumulado (Pareto)
+  clase: ClaseABC; // A = el 80% de las ventas, B = hasta el 95%, C = el resto
+  ingresosAnterior: number;
+  cambio: number | null; // % vs período anterior; null si no se vendió antes
+  esNuevo: boolean; // se vendió ahora y no en el período anterior
+};
+
+export type VentasPorProductoData = {
+  rango: { start: string; end: string; dias: number };
+  total: number;
+  totalAnterior: number;
+  productos: ProductoVendido[]; // de más a menos ingresos
+  categorias: Array<{ categoria: string; ingresos: number; participacion: number }>;
+  /** Productos activos del catálogo que no se vendieron en el período */
+  sinVentas: Array<{ id: number; nombre: string; categoria: string; ultimaVenta: string | null }>;
+  catalogo: number;
+  claseA: number; // cantidad de productos clase A
+};
+
+type Acum = { ingresos: number; unidades: number; ventas: Set<number> };
+
+async function cargar(start: Date, end: Date) {
+  const det = await prisma.detalleVenta.findMany({
+    where: { Venta: { estado: 1, fechaVenta: { gte: start, lte: end } } },
+    select: {
+      total: true,
+      cantidadUnidadesBase: true,
+      ventaID: true,
+      StockVenta: { select: { productoID: true } },
+    },
+  });
+  const mapa = new Map<number, Acum>();
+
+  for (const d of det) {
+    const id = d.StockVenta.productoID;
+    const a = mapa.get(id) ?? { ingresos: 0, unidades: 0, ventas: new Set<number>() };
+
+    a.ingresos += Number(d.total);
+    a.unidades += Number(d.cantidadUnidadesBase);
+    a.ventas.add(d.ventaID);
+    mapa.set(id, a);
+  }
+
+  return mapa;
 }
 
-export async function getProductSales(params: ProductSalesParams = {}) {
+export async function getSalesByProduct({
+  startDate,
+  endDate,
+}: Params): Promise<{ success: boolean; data?: VentasPorProductoData; error?: string }> {
   try {
-    const startDate = params.startDate ? new Date(params.startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    const endDate = params.endDate ? new Date(params.endDate) : new Date()
+    const actual = rangoReporte(startDate, endDate);
+    const prev = rangoAnterior(startDate, endDate);
+    const previo = rangoReporte(prev.start, prev.end);
 
-    // Obtener ventas del período
-    const ventas = await prisma.venta.findMany({
-      where: {
-        estado: 1,
-        fechaVenta: {
-          gte: startDate,
-          lte: endDate
-        }
-      },
-      include: {
-        DetalleVenta: {
-          include: {
-            StockVenta: {
-              include: {
-                Producto: {
-                  include: {
-                    Categoria: true,
-                    UnidadMedida: true
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    })
+    const [act, ant, catalogo, ultimas] = await Promise.all([
+      cargar(actual.startDate, actual.endDate),
+      cargar(previo.startDate, previo.endDate),
+      prisma.producto.findMany({
+        where: { estado: 1 },
+        select: {
+          id: true,
+          nombre: true,
+          Categoria: { select: { nombre: true } },
+          UnidadMedida: { select: { abreviatura: true, nombre: true } },
+        },
+      }),
+      prisma.detalleVenta.findMany({
+        where: { Venta: { estado: 1, fechaVenta: { lt: actual.startDate } } },
+        select: { StockVenta: { select: { productoID: true } }, Venta: { select: { fechaVenta: true } } },
+      }),
+    ]);
 
-    // Obtener stock actual de productos
-    const stockActual = await prisma.stockVenta.groupBy({
-      by: ['productoID'],
-      where: {
-        estado: 1
-      },
-      _sum: {
-        cantidadUnidadesBase: true
-      }
-    })
+    const total = Array.from(act.values()).reduce((s, a) => s + a.ingresos, 0);
+    const totalAnterior = Array.from(ant.values()).reduce((s, a) => s + a.ingresos, 0);
+    const info = new Map(catalogo.map((p) => [p.id, p]));
 
-    const stockMap = new Map(
-      stockActual.map(s => [s.productoID, s._sum.cantidadUnidadesBase?.toNumber() || 0])
-    )
+    let acumulado = 0;
+    const productos: ProductoVendido[] = Array.from(act.entries())
+      .filter(([id]) => info.has(id))
+      .sort((a, b) => b[1].ingresos - a[1].ingresos)
+      .map(([id, a]) => {
+        const p = info.get(id)!;
+        const antes = ant.get(id)?.ingresos ?? 0;
+        const antesAcum = acumulado;
 
-    // Análisis por producto
-    const productoData: Record<string, {
-      productoID: number
-      producto: string
-      categoria: string
-      unidadBase: string
-      unidadesVendidas: number
-      numeroVentas: number
-      totalIngresos: number
-      precioPromedio: number
-      stockActual: number
-      rotacion: number
-    }> = {}
+        acumulado += a.ingresos;
 
-    ventas.forEach(venta => {
-      venta.DetalleVenta.forEach(detalle => {
-        const producto = detalle.StockVenta.Producto
-        const key = producto.nombre
+        return {
+          id,
+          nombre: p.nombre,
+          categoria: p.Categoria.nombre,
+          unidadBase: p.UnidadMedida.abreviatura || p.UnidadMedida.nombre,
+          ingresos: a.ingresos,
+          unidades: a.unidades,
+          ventas: a.ventas.size,
+          participacion: total ? (a.ingresos / total) * 100 : 0,
+          acumulado: total ? (acumulado / total) * 100 : 0,
+          // Un producto es A si al sumarlo todavía no habíamos llegado al 80%
+          clase: (total && antesAcum / total < 0.8 ? "A" : total && antesAcum / total < 0.95 ? "B" : "C") as ClaseABC,
+          ingresosAnterior: antes,
+          cambio: antes > 0 ? ((a.ingresos - antes) / antes) * 100 : null,
+          esNuevo: antes === 0,
+        };
+      });
 
-        if (!productoData[key]) {
-          productoData[key] = {
-            productoID: producto.id,
-            producto: producto.nombre,
-            categoria: producto.Categoria.nombre,
-            unidadBase: producto.UnidadMedida.nombre,
-            unidadesVendidas: 0,
-            numeroVentas: 0,
-            totalIngresos: 0,
-            precioPromedio: 0,
-            stockActual: stockMap.get(producto.id) || 0,
-            rotacion: 0
-          }
-        }
+    const catMap = new Map<string, number>();
 
-        productoData[key].unidadesVendidas += detalle.cantidadUnidadesBase.toNumber()
-        productoData[key].numeroVentas += 1
-        productoData[key].totalIngresos += detalle.total.toNumber()
-      })
-    })
+    for (const p of productos) catMap.set(p.categoria, (catMap.get(p.categoria) ?? 0) + p.ingresos);
 
-    // Calcular precio promedio y rotación
-    const productosArray = Object.values(productoData).map(p => {
-      p.precioPromedio = p.numeroVentas > 0 ? p.totalIngresos / p.unidadesVendidas : 0
-      
-      // Rotación = unidades vendidas / stock promedio
-      // Si no hay stock actual, asumimos que todo se vendió
-      if (p.stockActual > 0) {
-        p.rotacion = p.unidadesVendidas / p.stockActual
-      } else {
-        p.rotacion = p.unidadesVendidas > 0 ? 999 : 0 // 999 = se vendió todo
-      }
-      
-      return p
-    })
+    const ultima = new Map<number, string>();
 
-    // Clasificar productos
-    const productos = productosArray.sort((a, b) => b.unidadesVendidas - a.unidadesVendidas)
-    
-    // Top productos
-    const topProductos = productos.slice(0, 20)
-    
-    // Productos lentos (menos de 5 unidades vendidas)
-    const productosLentos = productos
-      .filter(p => p.unidadesVendidas < 5 && p.unidadesVendidas > 0)
-      .sort((a, b) => a.unidadesVendidas - b.unidadesVendidas)
-      .slice(0, 20)
+    for (const u of ultimas) {
+      const f = u.Venta.fechaVenta?.toISOString().slice(0, 10);
+      const id = u.StockVenta.productoID;
 
-    // Productos sin ventas
-    const productosSinVentas = productos
-      .filter(p => p.unidadesVendidas === 0)
-      .slice(0, 20)
-
-    // Productos estrella (alta rotación y ventas)
-    const productosEstrella = productos
-      .filter(p => p.rotacion > 2 && p.unidadesVendidas > 10)
-      .sort((a, b) => b.rotacion - a.rotacion)
-      .slice(0, 20)
-
-    // Análisis por categoría
-    const categoriaData: Record<string, {
-      categoria: string
-      unidadesVendidas: number
-      totalIngresos: number
-      numeroProductos: number
-    }> = {}
-
-    productosArray.forEach(p => {
-      if (!categoriaData[p.categoria]) {
-        categoriaData[p.categoria] = {
-          categoria: p.categoria,
-          unidadesVendidas: 0,
-          totalIngresos: 0,
-          numeroProductos: 0
-        }
-      }
-      
-      categoriaData[p.categoria].unidadesVendidas += p.unidadesVendidas
-      categoriaData[p.categoria].totalIngresos += p.totalIngresos
-      categoriaData[p.categoria].numeroProductos += 1
-    })
-
-    const categorias = Object.values(categoriaData)
-      .sort((a, b) => b.unidadesVendidas - a.unidadesVendidas)
-
-    // Estadísticas generales
-    const totalProductos = productosArray.length
-    const totalUnidadesVendidas = productosArray.reduce((sum, p) => sum + p.unidadesVendidas, 0)
-    const totalIngresos = productosArray.reduce((sum, p) => sum + p.totalIngresos, 0)
-    const productosActivos = productosArray.filter(p => p.unidadesVendidas > 0).length
-    const productosInactivos = productosArray.filter(p => p.unidadesVendidas === 0).length
-    const promedioVentasPorProducto = totalProductos > 0 ? totalUnidadesVendidas / totalProductos : 0
+      if (f && (!ultima.get(id) || f > ultima.get(id)!)) ultima.set(id, f);
+    }
 
     return {
       success: true,
       data: {
+        rango: { start: startDate, end: endDate, dias: diasEnRango(startDate, endDate) },
+        total,
+        totalAnterior,
         productos,
-        topProductos,
-        productosLentos,
-        productosSinVentas,
-        productosEstrella,
-        categorias,
-        estadisticas: {
-          totalProductos,
-          totalUnidadesVendidas,
-          totalIngresos,
-          productosActivos,
-          productosInactivos,
-          promedioVentasPorProducto
-        },
-        periodo: {
-          inicio: startDate.toISOString().split('T')[0],
-          fin: endDate.toISOString().split('T')[0]
-        }
-      }
-    }
-
+        categorias: Array.from(catMap.entries())
+          .map(([categoria, ingresos]) => ({ categoria, ingresos, participacion: total ? (ingresos / total) * 100 : 0 }))
+          .sort((a, b) => b.ingresos - a.ingresos),
+        sinVentas: catalogo
+          .filter((p) => !act.has(p.id))
+          .map((p) => ({ id: p.id, nombre: p.nombre, categoria: p.Categoria.nombre, ultimaVenta: ultima.get(p.id) ?? null })),
+        catalogo: catalogo.length,
+        claseA: productos.filter((p) => p.clase === "A").length,
+      },
+    };
   } catch (error) {
-    console.error("Error en getProductSales:", error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Error desconocido al analizar ventas por producto"
-    }
+    console.error("Error en getSalesByProduct:", error);
+
+    return { success: false, error: "Error al calcular las ventas por producto" };
   }
 }

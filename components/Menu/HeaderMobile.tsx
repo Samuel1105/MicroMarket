@@ -60,11 +60,11 @@ const HeaderMobile = () => {
       initial={false}
     >
       <motion.div
-        className="absolute inset-0 right-0 w-full bg-white"
+        className="absolute inset-0 right-0 w-full bg-gradient-to-b from-primary-50 via-white to-white"
         variants={sidebar}
       />
       <motion.ul
-        className={`absolute grid w-full gap-3 px-10 py-16 ${
+        className={`absolute grid w-full gap-2 px-8 py-20 ${
           isOpen
             ? "overflow-y-auto max-h-[calc(100vh-4rem)]"
             : "overflow-hidden"
@@ -72,8 +72,6 @@ const HeaderMobile = () => {
         variants={variants}
       >
         {SIDENAV_ITEMS.map((item, idx) => {
-          const isLastItem = idx === SIDENAV_ITEMS.length - 1;
-
           return (
             <div key={idx}>
               {item.submenu ? (
@@ -81,35 +79,51 @@ const HeaderMobile = () => {
               ) : (
                 <MenuItem>
                   <Link
-                    className={`flex w-full text-2xl ${
-                      item.path === pathname ? "font-bold" : ""
+                    className={`flex items-center gap-3 w-full text-lg px-3 py-2.5 rounded-xl transition-colors ${
+                      item.path === pathname
+                        ? "bg-primary-50 text-primary-700 font-semibold"
+                        : "text-zinc-600"
                     }`}
                     href={item.path}
                     onClick={() => toggleOpen()}
                   >
+                    <span
+                      className={
+                        item.path === pathname
+                          ? "text-primary-600"
+                          : "text-zinc-400"
+                      }
+                    >
+                      {item.icon}
+                    </span>
                     {item.title}
                   </Link>
                 </MenuItem>
-              )}
-              {!isLastItem && (
-                <MenuItem className="my-3 h-px w-full bg-gray-300" />
               )}
             </div>
           );
         })}
       </motion.ul>
-      <MenuToggle toggle={toggleOpen} />
+      <MenuToggle toggle={toggleOpen} isOpen={isOpen} />
     </motion.nav>
   );
 };
 
-const MenuToggle = ({ toggle }: { toggle: () => void }) => (
+const MenuToggle = ({
+  toggle,
+  isOpen,
+}: {
+  toggle: () => void;
+  isOpen: boolean;
+}) => (
   <button
     aria-label="Toggle menu"
-    className="pointer-events-auto absolute right-4 top-[14px] z-30"
+    className={`pointer-events-auto absolute right-4 top-[14px] z-30 flex items-center justify-center w-9 h-9 rounded-lg transition-colors ${
+      isOpen ? "bg-primary-100" : "bg-zinc-100"
+    }`}
     onClick={toggle}
   >
-    <svg height="20" viewBox="0 0 23 23" width="20">
+    <svg height="18" viewBox="0 0 23 23" width="18">
       <Path
         variants={{
           closed: { d: "M 2 2.5 L 20 2.5" },
@@ -137,7 +151,7 @@ const MenuToggle = ({ toggle }: { toggle: () => void }) => (
 const Path = (props: any) => (
   <motion.path
     fill="transparent"
-    stroke="hsl(0, 0%, 18%)"
+    stroke="#ea580c"
     strokeLinecap="round"
     strokeWidth="2"
     {...props}
@@ -165,35 +179,44 @@ const MenuItemWithSubMenu: React.FC<MenuItemWithSubMenuProps> = ({
   const pathname = usePathname();
   const [subMenuOpen, setSubMenuOpen] = useState(false);
 
+  const isActive = pathname.includes(item.path);
+
   return (
     <>
       <MenuItem>
         <button
           aria-expanded={subMenuOpen}
-          className="flex w-full text-2xl"
+          className={`flex w-full text-lg items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ${
+            isActive ? "bg-primary-50 text-primary-700 font-semibold" : "text-zinc-600"
+          }`}
           onClick={() => setSubMenuOpen(!subMenuOpen)}
         >
           <div className="flex flex-row justify-between w-full items-center">
-            <span
-              className={`${pathname.includes(item.path) ? "font-bold" : ""}`}
-            >
+            <span className="flex items-center gap-3">
+              <span className={isActive ? "text-primary-600" : "text-zinc-400"}>
+                {item.icon}
+              </span>
               {item.title}
             </span>
-            <div className={`${subMenuOpen && "rotate-180"}`}>
-              <Icon height="24" icon="lucide:chevron-down" width="24" />
+            <div
+              className={`text-zinc-400 transition-transform ${subMenuOpen ? "rotate-180" : ""}`}
+            >
+              <Icon height="20" icon="lucide:chevron-down" width="20" />
             </div>
           </div>
         </button>
       </MenuItem>
-      <div className="mt-2 ml-2 flex flex-col space-y-2">
+      <div className="mt-1 ml-9 flex flex-col space-y-1 border-l-2 border-zinc-100 pl-4">
         {subMenuOpen && (
           <>
             {item.subMenuItems?.map((subItem, subIdx) => {
               return (
                 <MenuItem key={subIdx}>
                   <Link
-                    className={` ${
-                      subItem.path === pathname ? "font-bold" : ""
+                    className={`block text-base px-2 py-1.5 rounded-lg transition-colors ${
+                      subItem.path === pathname
+                        ? "font-semibold text-primary-700 bg-primary-50"
+                        : "text-zinc-500"
                     }`}
                     href={subItem.path}
                     onClick={() => toggleOpen()}

@@ -74,9 +74,9 @@ export default function PurchaseForm() {
 
             {/* Columna derecha: Resumen */}
             <div className="space-y-4">
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="p-4 bg-primary-50 rounded-lg border border-primary-200">
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-semibold text-blue-900 text-sm">Productos Disponibles</h4>
+                  <h4 className="font-semibold text-primary-900 text-sm">Productos Disponibles</h4>
                   <Chip 
                     color={productosProveedor.length > 0 ? "success" : "default"} 
                     variant="flat"

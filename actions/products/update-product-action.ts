@@ -19,6 +19,7 @@ export async function updateProductAction(data: ProductoUpdateApiData) {
         data: {
           nombre: data.producto.nombre,
           descripcion: data.producto.descripcion,
+          ...(data.producto.stockMinimo !== undefined && { stockMinimo: data.producto.stockMinimo }),
           categoriaID: data.producto.categoriaID,
           proveedorID: data.producto.proveedorID,
           unidadBaseID: data.producto.unidadBaseID,

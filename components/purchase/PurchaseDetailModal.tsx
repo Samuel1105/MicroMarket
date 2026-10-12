@@ -1,17 +1,11 @@
-import React from 'react';
-import {
-  Modal,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalFooter,
-  Button,
-  Card,
-  CardBody,
-  Chip,
-  Divider
-} from '@heroui/react';
-import { Icon } from '@iconify/react';
+"use client";
+import { Chip } from "@heroui/react";
+import { Icon } from "@iconify/react";
+import React from "react";
+
+import DetailModalLayout, { InfoTile, TotalRow } from "@/components/ui/DetailModalLayout";
+import { formatVencimiento, getDiasParaVencer, getSeveridad } from "@/src/utils/expiry";
+import { formatShortDate } from "@/src/utils/period";
 
 interface PurchaseDetail {
   id: number;
@@ -51,325 +45,93 @@ interface PurchaseDetailModalProps {
   purchase: Purchase | null;
 }
 
-export default function PurchaseDetailModal({
-  isOpen,
-  onClose,
-  purchase
-}: PurchaseDetailModalProps) {
+export default function PurchaseDetailModal({ isOpen, onClose, purchase }: PurchaseDetailModalProps) {
   if (!purchase) return null;
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('es-BO', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
-
-  const formatShortDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('es-BO', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    });
-  };
-
-  // Calcular la conversión basada en cantidad y unidades base
-  const getConversionInfo = (detail: PurchaseDetail) => {
-    if (detail.cantidadUnidadesBase === detail.cantidad) {
-      // Es unidad base (no hay conversión)
-      return null;
-    }
-
-    const unidadesPorPaquete = detail.cantidadUnidadesBase / detail.cantidad;
-    return {
-      cantidadPaquetes: detail.cantidad,
-      unidadesPorPaquete: unidadesPorPaquete,
-      totalUnidades: detail.cantidadUnidadesBase
-    };
-  };
+  const totalUnidades = purchase.detalles.reduce((sum, d) => sum + d.cantidad, 0);
 
   return (
-    <Modal
+    <DetailModalLayout
+      badge={
+        <Chip color="success" size="lg" variant="flat">
+          Bs. {purchase.total.toFixed(2)}
+        </Chip>
+      }
+      icon="heroicons:shopping-cart"
       isOpen={isOpen}
+      subtitle={`${purchase.numeroCompra} · ${formatShortDate(purchase.fecha)}`}
+      title="Detalle de la compra"
       onClose={onClose}
-      size="3xl"
-      scrollBehavior="inside"
-      classNames={{
-        base: "max-h-[90vh]",
-        body: "py-6"
-      }}
     >
-      <ModalContent>
-        {(onClose) => (
-          <>
-            <ModalHeader className="flex flex-col gap-1 pb-4 border-b">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xl font-bold">Detalles de la Compra</h3>
-                  <p className="text-sm text-gray-500 font-normal mt-1">
-                    {purchase.numeroCompra}
-                  </p>
-                </div>
-                <Chip color="success" variant="flat" size="lg">
-                  Bs. {purchase.total.toFixed(2)}
-                </Chip>
-              </div>
-            </ModalHeader>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <InfoTile icon="heroicons:building-storefront" label="Proveedor">
+          {purchase.proveedor.nombre}
+        </InfoTile>
+        <InfoTile icon="heroicons:calendar" label="Fecha">
+          {formatShortDate(purchase.fecha)}
+        </InfoTile>
+        <InfoTile icon="heroicons:cube" label="Productos">
+          {purchase.detalles.length}
+        </InfoTile>
+        <InfoTile icon="heroicons:archive-box" label="Unidades compradas">
+          {totalUnidades}
+        </InfoTile>
+      </div>
 
-            <ModalBody>
-              {/* Información General */}
-              <Card className="bg-gray-50">
-                <CardBody className="p-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex items-start gap-3">
-                      <Icon
-                        icon="mdi:store"
-                        width="24"
-                        height="24"
-                        className="text-blue-600 mt-0.5"
-                      />
-                      <div>
-                        <p className="text-xs text-gray-600">Proveedor</p>
-                        <p className="font-semibold">{purchase.proveedor.nombre}</p>
-                      </div>
-                    </div>
+      <div className="space-y-2">
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Qué se compró</h4>
+        <div className="rounded-xl border border-default-200 divide-y divide-default-100">
+          {purchase.detalles.map((d) => {
+            const dias = getDiasParaVencer(d.fechaVencimiento);
+            const sev = getSeveridad(dias);
+            const esPaquete = d.cantidadUnidadesBase !== d.cantidad;
 
-                    <div className="flex items-start gap-3">
-                      <Icon
-                        icon="mdi:calendar"
-                        width="24"
-                        height="24"
-                        className="text-blue-600 mt-0.5"
-                      />
-                      <div>
-                        <p className="text-xs text-gray-600">Fecha de Compra</p>
-                        <p className="font-semibold">{formatDate(purchase.fecha)}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <Icon
-                        icon="mdi:package-variant"
-                        width="24"
-                        height="24"
-                        className="text-blue-600 mt-0.5"
-                      />
-                      <div>
-                        <p className="text-xs text-gray-600">Total Productos</p>
-                        <p className="font-semibold">{purchase.detalles.length} producto(s)</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <Icon
-                        icon="mdi:cash-multiple"
-                        width="24"
-                        height="24"
-                        className="text-blue-600 mt-0.5"
-                      />
-                      <div>
-                        <p className="text-xs text-gray-600">Estado</p>
-                        <Chip color="success" size="sm" variant="flat">
-                          Completada
-                        </Chip>
-                      </div>
-                    </div>
-                  </div>
-                </CardBody>
-              </Card>
-
-              <Divider className="my-4" />
-
-              {/* Lista de Productos */}
-              <div className="space-y-3">
-                <h4 className="font-semibold text-lg flex items-center gap-2">
-                  <Icon icon="mdi:format-list-bulleted" width="20" height="20" />
-                  Productos Comprados
-                </h4>
-
-                {purchase.detalles.map((detail, index) => {
-                  const conversionInfo = getConversionInfo(detail);
-
-                  return (
-                    <Card key={detail.id} className="border">
-                      <CardBody className="p-4">
-                        <div className="space-y-3">
-                          {/* Encabezado del producto */}
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <Icon
-                                  icon="mdi:package-variant-closed"
-                                  width="18"
-                                  height="18"
-                                  className="text-blue-600"
-                                />
-                                <h5 className="font-semibold text-base">
-                                  {detail.producto}
-                                </h5>
-                              </div>
-                              <p className="text-sm text-gray-600">
-                                Unidad: <span className="font-medium">{detail.unidad}</span>
-                              </p>
-                            </div>
-                            <Chip color="primary" variant="flat" size="sm">
-                              #{index + 1}
-                            </Chip>
-                          </div>
-
-                          {/* Información de cantidad y conversión */}
-                          <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                              <div>
-                                <p className="text-xs text-gray-600 mb-1">Cantidad Comprada</p>
-                                <p className="text-lg font-bold text-blue-600">
-                                  {detail.cantidad} {detail.unidad.split('(')[0].trim()}
-                                </p>
-                              </div>
-
-                              {conversionInfo && (
-                                <div className="bg-white rounded-md p-2 border border-blue-200">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Icon
-                                      icon="mdi:swap-horizontal"
-                                      width="16"
-                                      height="16"
-                                      className="text-green-600"
-                                    />
-                                    <p className="text-xs font-semibold text-green-700">
-                                      Conversión
-                                    </p>
-                                  </div>
-                                  <p className="text-sm font-medium">
-                                    {conversionInfo.cantidadPaquetes} × {conversionInfo.unidadesPorPaquete} unidades
-                                  </p>
-                                  <p className="text-xs text-gray-600">
-                                    = {conversionInfo.totalUnidades} unidades base
-                                  </p>
-                                </div>
-                              )}
-
-                              {!conversionInfo && (
-                                <div className="flex items-center gap-2">
-                                  <Icon
-                                    icon="mdi:information-outline"
-                                    width="16"
-                                    height="16"
-                                    className="text-gray-500"
-                                  />
-                                  <p className="text-sm text-gray-600">
-                                    Unidad base (sin conversión)
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Precios */}
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                            <div>
-                              <p className="text-xs text-gray-600">Precio Unit.</p>
-                              <p className="font-semibold">Bs. {detail.precioUnitario.toFixed(2)}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-gray-600">Subtotal</p>
-                              <p className="font-semibold">Bs. {detail.subtotal.toFixed(2)}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-gray-600">Descuento</p>
-                              <p className="font-semibold text-red-600">
-                                {detail.descuento > 0 ? `- Bs. ${detail.descuento.toFixed(2)}` : 'Bs. 0.00'}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-gray-600">Total</p>
-                              <p className="font-bold text-green-600">Bs. {detail.total.toFixed(2)}</p>
-                            </div>
-                          </div>
-
-                          {/* Información de Lote */}
-                          <div className="flex flex-col md:flex-row md:items-center gap-3 pt-2 border-t">
-                            <div className="flex items-center gap-2 flex-1">
-                              <Icon
-                                icon="mdi:barcode"
-                                width="18"
-                                height="18"
-                                className="text-gray-600"
-                              />
-                              <div>
-                                <p className="text-xs text-gray-600">Lote</p>
-                                <p className="font-medium text-sm">{detail.lote}</p>
-                              </div>
-                            </div>
-
-                            {detail.fechaVencimiento && (
-                              <div className="flex items-center gap-2">
-                                <Icon
-                                  icon="mdi:calendar-clock"
-                                  width="18"
-                                  height="18"
-                                  className="text-orange-600"
-                                />
-                                <div>
-                                  <p className="text-xs text-gray-600">Vencimiento</p>
-                                  <p className="font-medium text-sm">
-                                    {formatShortDate(detail.fechaVencimiento)}
-                                  </p>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </CardBody>
-                    </Card>
-                  );
-                })}
-              </div>
-
-              <Divider className="my-4" />
-
-              {/* Resumen de Totales */}
-              <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200">
-                <CardBody className="p-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-700">Subtotal:</span>
-                      <span className="font-semibold">Bs. {purchase.subtotal.toFixed(2)}</span>
-                    </div>
-                    
-                    {purchase.descuento > 0 && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-700">Descuento Total:</span>
-                        <span className="font-semibold text-red-600">
-                          - Bs. {purchase.descuento.toFixed(2)}
-                        </span>
-                      </div>
+            return (
+              <div key={d.id} className="p-3 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm">{d.producto}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {d.cantidad} {d.unidad}
+                    {esPaquete && (
+                      <span className="text-primary-600"> · equivale a {d.cantidadUnidadesBase} unidades base</span>
                     )}
-
-                    <Divider />
-
-                    <div className="flex justify-between items-center pt-2">
-                      <span className="text-lg font-bold text-gray-800">Total Final:</span>
-                      <span className="text-2xl font-bold text-green-600">
-                        Bs. {purchase.total.toFixed(2)}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                    <Chip size="sm" variant="flat">
+                      <span className="flex items-center gap-1">
+                        <Icon height="12" icon="heroicons:archive-box" width="12" />
+                        Lote {d.lote}
                       </span>
-                    </div>
+                    </Chip>
+                    {d.fechaVencimiento && sev && (
+                      <Chip color={sev} size="sm" variant="flat">
+                        {formatShortDate(d.fechaVencimiento)} · {formatVencimiento(dias)}
+                      </Chip>
+                    )}
                   </div>
-                </CardBody>
-              </Card>
-            </ModalBody>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-xs text-gray-500">
+                    {d.cantidad} × Bs. {d.precioUnitario.toFixed(2)}
+                  </p>
+                  {d.descuento > 0 && <p className="text-xs text-red-600">- Bs. {d.descuento.toFixed(2)} desc.</p>}
+                  <p className="font-bold text-sm">Bs. {d.total.toFixed(2)}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
-            <ModalFooter className="border-t">
-              <Button color="primary" variant="light" onPress={onClose}>
-                Cerrar
-              </Button>
-            </ModalFooter>
-          </>
+      <div className="rounded-xl bg-default-50 border border-default-100 p-4 space-y-2">
+        <TotalRow label="Subtotal" value={`Bs. ${purchase.subtotal.toFixed(2)}`} />
+        {purchase.descuento > 0 && (
+          <TotalRow label="Descuento" tone="danger" value={`- Bs. ${purchase.descuento.toFixed(2)}`} />
         )}
-      </ModalContent>
-    </Modal>
+        <div className="border-t border-default-200 pt-2">
+          <TotalRow big label="Total" tone="success" value={`Bs. ${purchase.total.toFixed(2)}`} />
+        </div>
+      </div>
+    </DetailModalLayout>
   );
 }

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import BaseChart from './BaseChart'
+import type { EChartsOption } from 'echarts'
 import { getVentasMensuales } from '@/actions/dashboard/dashboard-action'
 
 
@@ -37,7 +38,7 @@ export default function VentasMensualesChart() {
     )
   }
 
-  const option: echarts.EChartsOption = {
+  const option: EChartsOption = {
     title: {
       text: 'Ventas del Mes',
       left: 'left',

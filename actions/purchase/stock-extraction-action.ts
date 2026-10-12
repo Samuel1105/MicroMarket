@@ -1,5 +1,6 @@
 "use server";
 import { prisma } from "@/src/lib/prisma";
+import { cerrarAvisosResueltos } from "@/src/lib/notifications";
 import { getBoliviaTime } from "@/src/utils/date";
 
 // Obtener productos disponibles en el almacén (de las compras)
@@ -61,10 +62,11 @@ export async function getAvailableStockForExtraction() {
             }
           }
         },
-        // Calcular cantidad ya extraída
-        StockVenta: {
+        // Cantidad ya extraída: se calcula con los movimientos de salida del lote,
+        // que no cambian cuando el producto se vende desde el estante
+        MovimientoAlmacen: {
           where: {
-            estado: 1,
+            tipoMovimiento: 2,
           },
           select: {
             cantidadUnidadesBase: true,
@@ -80,8 +82,8 @@ export async function getAvailableStockForExtraction() {
 
     // Transformar datos
     const stockDisponible = lotes.map(lote => {
-      const cantidadExtraida = lote.StockVenta.reduce(
-        (sum, stock) => sum + Number(stock.cantidadUnidadesBase), 
+      const cantidadExtraida = lote.MovimientoAlmacen.reduce(
+        (sum, mov) => sum + Number(mov.cantidadUnidadesBase),
         0
       );
       const cantidadDisponible = Number(lote.cantidadInicialUnidadesBase) - cantidadExtraida;
@@ -108,15 +110,26 @@ export async function getAvailableStockForExtraction() {
         cantidadTotalUnidadesBase: Number(lote.cantidadInicialUnidadesBase),
         cantidadExtraidaUnidadesBase: cantidadExtraida,
         cantidadDisponibleUnidadesBase: cantidadDisponible,
-        unidadesDisponibles: lote.Producto.ConversionUnidad.map(conv => ({
-          conversionId: conv.id,
-          unidadId: conv.unidadOrigenID,
-          nombre: conv.UnidadMedida_ConversionUnidad_unidadOrigenIDToUnidadMedida.nombre,
-          abreviatura: conv.UnidadMedida_ConversionUnidad_unidadOrigenIDToUnidadMedida.abreviatura,
-          factor: Number(conv.factorConversion),
-          precioVenta: Number(conv.precioVentaUnitario || 0),
-          cantidadMaxima: Math.floor(cantidadDisponible / Number(conv.factorConversion)),
-        }))
+        unidadesDisponibles: lote.Producto.ConversionUnidad.map(conv => {
+          const factor = Number(conv.factorConversion);
+          // La unidad base (factor 1) admite cantidades decimales (ej. venta
+          // por peso); las unidades empaquetadas (factor > 1) solo permiten
+          // paquetes completos, por eso ahí sí se redondea hacia abajo.
+          const cantidadMaxima =
+            factor === 1
+              ? cantidadDisponible
+              : Math.floor(cantidadDisponible / factor);
+
+          return {
+            conversionId: conv.id,
+            unidadId: conv.unidadOrigenID,
+            nombre: conv.UnidadMedida_ConversionUnidad_unidadOrigenIDToUnidadMedida.nombre,
+            abreviatura: conv.UnidadMedida_ConversionUnidad_unidadOrigenIDToUnidadMedida.abreviatura,
+            factor,
+            precioVenta: Number(conv.precioVentaUnitario || 0),
+            cantidadMaxima,
+          };
+        })
       };
     }).filter(item => item.cantidadDisponibleUnidadesBase > 0);
 
@@ -171,8 +184,8 @@ export async function extractStockForSale(request: ExtractStockRequest) {
         const lote = await tx.lote.findUnique({
           where: { id: item.loteId },
           include: {
-            StockVenta: {
-              where: { estado: 1 },
+            MovimientoAlmacen: {
+              where: { tipoMovimiento: 2 },
               select: { cantidadUnidadesBase: true }
             }
           }
@@ -182,8 +195,20 @@ export async function extractStockForSale(request: ExtractStockRequest) {
           throw new Error(`Lote ${item.loteId} no encontrado`);
         }
 
-        const cantidadExtraida = lote.StockVenta.reduce(
-          (sum, stock) => sum + Number(stock.cantidadUnidadesBase), 
+        // Un producto vencido no puede pasar al estante
+        if (lote.fechaVencimiento) {
+          const vence = lote.fechaVencimiento.toISOString().slice(0, 10);
+          const hoy = getBoliviaTime().toISOString().slice(0, 10);
+
+          if (vence < hoy) {
+            throw new Error(
+              `El lote ${lote.numeroLote} venció el ${vence.split('-').reverse().join('/')}: no se puede pasar al estante.`
+            );
+          }
+        }
+
+        const cantidadExtraida = lote.MovimientoAlmacen.reduce(
+          (sum, mov) => sum + Number(mov.cantidadUnidadesBase),
           0
         );
         const disponible = Number(lote.cantidadInicialUnidadesBase) - cantidadExtraida;
@@ -264,6 +289,9 @@ export async function extractStockForSale(request: ExtractStockRequest) {
       };
     });
 
+    // Al pasar producto al estante se cierra el aviso "sacar al estante"
+    await cerrarAvisosResueltos(request.items.map((i) => i.productoId));
+
     return {
       success: true,
       data: result,
@@ -299,6 +327,7 @@ export async function getAvailableSalesStock() {
             id: true,
             nombre: true,
             descripcion: true,
+            Categoria: { select: { nombre: true } },
           }
         },
         UnidadMedida: {
@@ -335,6 +364,7 @@ export async function getAvailableSalesStock() {
         id: stock.Producto.id,
         nombre: stock.Producto.nombre,
         descripcion: stock.Producto.descripcion,
+        categoria: stock.Producto.Categoria.nombre,
       },
       unidad: {
         id: stock.UnidadMedida.id,

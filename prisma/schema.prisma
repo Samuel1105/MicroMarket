@@ -160,6 +160,7 @@ model Producto {
   categoriaID          Int                 @db.TinyInt
   proveedorID          Int                 @db.SmallInt
   unidadBaseID         Int                 @db.TinyInt
+  stockMinimo          Decimal             @default(10, map: "DF_Producto_stockMinimo") @db.Decimal(8, 2)
   estado               Int?                @default(1, map: "DF__Producto__estado__6477ECF3") @db.TinyInt
   fechaRegistro        DateTime?           @default(now(), map: "DF__Producto__fechaR__656C112C") @db.DateTime
   usuarioRegistro      Int                 @db.TinyInt
@@ -173,6 +174,7 @@ model Producto {
   Proveedor            Proveedor           @relation(fields: [proveedorID], references: [id], onUpdate: NoAction, map: "FK__Producto__provee__45F365D3")
   UnidadMedida         UnidadMedida        @relation(fields: [unidadBaseID], references: [id], onUpdate: NoAction, map: "FK__Producto__unidad__46E78A0C")
   StockVenta           StockVenta[]
+  SolicitudCompraDetalle SolicitudCompraDetalle[]
 }
 
 model Proveedor {
@@ -188,6 +190,7 @@ model Proveedor {
   usuarioIdActualizacion Int?       @db.TinyInt
   Compra                 Compra[]
   Producto               Producto[]
+  SolicitudCompra        SolicitudCompra[]
 }
 
 model StockVenta {
@@ -238,4 +241,42 @@ model Venta {
   usuarioRegistro Int            @db.TinyInt
   DetalleVenta    DetalleVenta[]
   Cliente         Cliente        @relation(fields: [clienteID], references: [id], onUpdate: NoAction, map: "FK__Venta__clienteID__7C4F7684")
+}
+
+model Notificacion {
+  id              Int       @id(map: "PK_Notificacion") @default(autoincrement())
+  tipo            String    @db.NVarChar(30)
+  rolDestino      Int       @db.TinyInt
+  productoID      Int       @db.SmallInt
+  titulo          String    @db.NVarChar(120)
+  mensaje         String    @db.NVarChar(300)
+  enlace          String?   @db.NVarChar(120)
+  estado          Int       @default(0, map: "DF_Notificacion_estado") @db.TinyInt
+  fechaRegistro   DateTime  @db.DateTime
+  fechaCierre     DateTime? @db.DateTime
+  usuarioIdCierre Int?      @db.TinyInt
+  usuarioIdRegistro Int?    @db.TinyInt
+
+  @@index([rolDestino, estado], map: "IX_Notificacion_rol_estado")
+}
+
+model SolicitudCompra {
+  id                Int                      @id(map: "PK_SolicitudCompra") @default(autoincrement())
+  numero            String                   @db.NVarChar(30)
+  proveedorID       Int                      @db.SmallInt
+  estado            Int                      @default(0, map: "DF_SolicitudCompra_estado") @db.TinyInt
+  fechaRegistro     DateTime                 @db.DateTime
+  usuarioIdRegistro Int                      @db.TinyInt
+  compraID          Int?
+  fechaCierre       DateTime?                @db.DateTime
+  Proveedor         Proveedor                @relation(fields: [proveedorID], references: [id], onUpdate: NoAction, map: "FK_SolicitudCompra_Proveedor")
+  Detalle           SolicitudCompraDetalle[]
+}
+
+model SolicitudCompraDetalle {
+  id              Int             @id(map: "PK_SolicitudCompraDetalle") @default(autoincrement())
+  solicitudID     Int
+  productoID      Int             @db.SmallInt
+  SolicitudCompra SolicitudCompra @relation(fields: [solicitudID], references: [id], onUpdate: NoAction, map: "FK_SolicitudDetalle_Solicitud")
+  Producto        Producto        @relation(fields: [productoID], references: [id], onUpdate: NoAction, map: "FK_SolicitudDetalle_Producto")
 }

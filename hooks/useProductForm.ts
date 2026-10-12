@@ -37,6 +37,7 @@ export const useProductForm = ({
         id: producto.id,
         nombre: producto.nombre,
         descripcion: producto.descripcion || "",
+        stockMinimo: producto.stockMinimo ?? 10,
         categoriaID: producto.categoriaID.toString(),
         proveedorID: producto.proveedorID.toString(),
         conversiones: producto.conversiones.map((conversion, index) => ({
@@ -54,6 +55,7 @@ export const useProductForm = ({
     return {
       nombre: "",
       descripcion: "",
+      stockMinimo: 10,
       categoriaID: "",
       proveedorID: "",
       requiereNumeroSerie: false,
@@ -85,6 +87,7 @@ export const useProductForm = ({
         producto: {
           nombre: data.nombre.trim(),
           descripcion: data.descripcion?.trim(),
+          stockMinimo: data.stockMinimo ?? 10,
           categoriaID: parseInt(data.categoriaID),
           proveedorID: parseInt(data.proveedorID),
           unidadBaseID: parseInt(data.conversiones[0].unidadOrigenID),
@@ -143,6 +146,7 @@ export const useProductForm = ({
           id: data.id,
           nombre: data.nombre.trim(),
           descripcion: data.descripcion?.trim(),
+          stockMinimo: data.stockMinimo ?? 10,
           categoriaID: parseInt(data.categoriaID),
           proveedorID: parseInt(data.proveedorID),
           unidadBaseID: parseInt(data.conversiones[0].unidadOrigenID),

@@ -1,4 +1,4 @@
-import { Card, CardBody, Chip, Link } from "@heroui/react";
+import { Chip, Link } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";
 
 import DeleteUserConfirm from "./DeleteUserConfirm";
@@ -16,67 +16,49 @@ export default function CardMobile({
   return (
     <>
       {items.map((item) => (
-        <Card key={item.id} className="w-full">
-          <CardBody className="p-4">
-            <div className="flex justify-between items-start mb-3">
-              <div className="flex-1">
-                <h3 className="font-semibold text-lg mb-1 leading-tight">
-                  {`${item.primerNombre} ${item.segundoNombre ?? ""}`}
-                </h3>
-                <p className="text-sm text-gray-600 mb-1">
-                  {`${item.apellidoPaterno} ${item.apellidoMaterno}`}
+        <div
+          key={item.id}
+          className="rounded-2xl border border-default-200 bg-white shadow-sm hover:shadow-md hover:border-primary-200 transition-all p-4 sm:p-5"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-primary-50 text-primary-600 flex items-center justify-center shrink-0">
+              <Icon icon="heroicons:user-circle" width="24" height="24" />
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-semibold text-base truncate">
+                  {`${item.primerNombre} ${item.segundoNombre ?? ""} ${item.apellidoPaterno} ${item.apellidoMaterno}`}
                 </p>
-                <Chip
-                  color={item.rol === 1 ? "primary" : "secondary"}
-                  size="sm"
-                  variant="flat"
-                >
+                <Chip color={item.rol === 1 ? "primary" : "secondary"} size="sm" variant="flat">
                   {getRoleName(item.rol)}
                 </Chip>
               </div>
-              <div className="flex gap-2 ml-2">
-                <Link
-                  className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-                  href={`/User/${item.id}/Edit`}
-                >
-                  <Icon
-                    color="#0007fc"
-                    height="20"
-                    icon="iconamoon:edit-thin"
-                    width="20"
-                  />
-                </Link>
-                <div className="p-2 rounded-full hover:bg-gray-100 transition-colors">
-                  <DeleteUserConfirm
-                    usuario={item}
-                    onDeleteSuccess={handleDeleteSuccess}
-                  />
-                </div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-sm text-gray-500">
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <Icon icon="heroicons:envelope" width="14" height="14" className="shrink-0" />
+                  <span className="truncate">{item.correo}</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Icon icon="heroicons:phone" width="14" height="14" />
+                  {item.celular}
+                </span>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Icon
-                  className="text-gray-500"
-                  height="16"
-                  icon="heroicons:envelope"
-                  width="16"
-                />
-                <span className="text-sm text-gray-700">{item.correo}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Icon
-                  className="text-gray-500"
-                  height="16"
-                  icon="heroicons:phone"
-                  width="16"
-                />
-                <span className="text-sm text-gray-700">{item.celular}</span>
+            <div className="flex items-center gap-2 shrink-0">
+              <Link
+                className="w-9 h-9 rounded-lg border border-default-200 flex items-center justify-center text-gray-500 hover:text-primary-600 hover:bg-primary-50 hover:border-primary-300 transition-colors"
+                href={`/User/${item.id}/Edit`}
+              >
+                <Icon icon="heroicons:pencil-square" width="17" height="17" />
+              </Link>
+              <div className="w-9 h-9 rounded-lg border border-default-200 flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors">
+                <DeleteUserConfirm usuario={item} onDeleteSuccess={handleDeleteSuccess} />
               </div>
             </div>
-          </CardBody>
-        </Card>
+          </div>
+        </div>
       ))}
     </>
   );

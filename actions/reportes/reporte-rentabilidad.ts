@@ -1,260 +1,257 @@
-"use server"
+"use server";
 
-import { prisma } from "@/src/lib/prisma"
+import { prisma } from "@/src/lib/prisma";
+import { CostoProducto, getCostoPromedioBase } from "@/src/lib/report-cost";
+import { MARGEN_MINIMO } from "@/src/lib/report-config";
+import { cargarVencidos, VencidoDetalle } from "@/src/lib/report-vencidos";
+import { diasEnRango, rangoAnterior, rangoReporte } from "@/src/utils/report-dates";
 
-type ProductProfitabilityParams = {
-  startDate: string
-  endDate: string
+type Params = { startDate: string; endDate: string };
+
+export type EstadoProducto = "pierde" | "revisar" | "ok";
+
+export type ProductoRentabilidad = {
+  id: number;
+  nombre: string;
+  categoria: string;
+  unidades: number;
+  ingresos: number;
+  costo: number;
+  utilidadBruta: number; // ingresos - costo de lo vendido
+  perdidaVencimiento: number;
+  utilidad: number; // utilidadBruta - perdidaVencimiento
+  margenBruto: number; // % sobre ingresos, sin contar lo vencido
+  margen: number; // % sobre ingresos, ya restando lo vencido
+  precioPromedio: number;
+  costoUnidad: number;
+  gananciaUnidad: number;
+  estado: EstadoProducto;
+  motivo: string | null;
+  /** Precio que dejaría el margen mínimo (redondeado hacia arriba a 0.50) */
+  precioSugerido: number | null;
+  /** Utilidad extra si se vendiera lo mismo al precio sugerido */
+  utilidadExtra: number | null;
+};
+
+export type RentabilidadTotales = {
+  ingresos: number;
+  costo: number;
+  utilidadBruta: number;
+  perdidaVencimiento: number;
+  utilidad: number;
+  margen: number; // ponderado: utilidad total / ingresos totales
+};
+
+export type RentabilidadData = {
+  rango: { start: string; end: string; dias: number };
+  margenMinimo: number;
+  actual: RentabilidadTotales;
+  anterior: RentabilidadTotales;
+  productos: ProductoRentabilidad[]; // de más a menos utilidad
+  categorias: Array<{ categoria: string; utilidad: number; ingresos: number }>;
+  aRevisar: ProductoRentabilidad[];
+};
+
+type Acum = { id: number; nombre: string; categoria: string; unidades: number; ingresos: number; costo: number };
+
+async function ventasPorProducto(start: Date, end: Date, costos: Map<number, CostoProducto>) {
+  const detalles = await prisma.detalleVenta.findMany({
+    where: { Venta: { estado: 1, fechaVenta: { gte: start, lte: end } } },
+    select: {
+      total: true,
+      cantidadUnidadesBase: true,
+      StockVenta: {
+        select: {
+          productoID: true,
+          Producto: { select: { nombre: true, Categoria: { select: { nombre: true } } } },
+        },
+      },
+    },
+  });
+
+  const mapa = new Map<number, Acum>();
+
+  for (const d of detalles) {
+    const id = d.StockVenta.productoID;
+    const acc =
+      mapa.get(id) ??
+      {
+        id,
+        nombre: d.StockVenta.Producto.nombre,
+        categoria: d.StockVenta.Producto.Categoria.nombre,
+        unidades: 0,
+        ingresos: 0,
+        costo: 0,
+      };
+    const unidades = Number(d.cantidadUnidadesBase);
+
+    acc.unidades += unidades;
+    acc.ingresos += Number(d.total);
+    acc.costo += unidades * (costos.get(id)?.costoUnidad ?? 0);
+    mapa.set(id, acc);
+  }
+
+  return mapa;
 }
 
-export async function getProductProfitability(params: ProductProfitabilityParams) {
+function totales(productos: Array<{ ingresos: number; costo: number; perdidaVencimiento: number }>): RentabilidadTotales {
+  const ingresos = productos.reduce((s, p) => s + p.ingresos, 0);
+  const costo = productos.reduce((s, p) => s + p.costo, 0);
+  const perdida = productos.reduce((s, p) => s + p.perdidaVencimiento, 0);
+  const utilidad = ingresos - costo - perdida;
+
+  return {
+    ingresos,
+    costo,
+    utilidadBruta: ingresos - costo,
+    perdidaVencimiento: perdida,
+    utilidad,
+    margen: ingresos > 0 ? (utilidad / ingresos) * 100 : 0,
+  };
+}
+
+function bs(n: number) {
+  return `Bs. ${n.toFixed(2)}`;
+}
+
+function armarProducto(a: Acum, vencidos: VencidoDetalle[], costos: Map<number, CostoProducto>): ProductoRentabilidad {
+  const perdida = vencidos.filter((v) => v.productoID === a.id).reduce((s, v) => s + v.costo, 0);
+  const utilidadBruta = a.ingresos - a.costo;
+  const utilidad = utilidadBruta - perdida;
+  const margenBruto = a.ingresos > 0 ? (utilidadBruta / a.ingresos) * 100 : 0;
+  const precioPromedio = a.unidades > 0 ? a.ingresos / a.unidades : 0;
+  const costoUnidad = a.unidades > 0 ? a.costo / a.unidades : (costos.get(a.id)?.costoUnidad ?? 0);
+  const gananciaUnidad = precioPromedio - costoUnidad;
+
+  let estado: EstadoProducto = "ok";
+  let motivo: string | null = null;
+  let precioSugerido: number | null = null;
+  let utilidadExtra: number | null = null;
+
+  if (utilidad < 0) {
+    estado = "pierde";
+    if (a.ingresos === 0) {
+      motivo = `No vendiste nada y se venció mercadería por ${bs(perdida)}.`;
+    } else if (utilidadBruta < 0) {
+      motivo = `Lo vendes por debajo de su costo: te cuesta ${bs(costoUnidad)} y lo vendes a ${bs(precioPromedio)}.`;
+    } else {
+      motivo = `Parece rentable (margen ${margenBruto.toFixed(1)}%), pero se venció ${bs(perdida)} y en total perdiste ${bs(-utilidad)}.`;
+    }
+  } else if (a.ingresos > 0 && margenBruto < MARGEN_MINIMO) {
+    estado = "revisar";
+    motivo = `Vendiste ${Math.round(a.unidades)} unidades pero dejas solo ${bs(gananciaUnidad)} por unidad (margen ${margenBruto.toFixed(1)}%).`;
+  }
+
+  if (a.unidades > 0 && costoUnidad > 0 && margenBruto < MARGEN_MINIMO) {
+    const sugerido = Math.ceil((costoUnidad / (1 - MARGEN_MINIMO / 100)) * 2) / 2;
+
+    if (sugerido > precioPromedio) {
+      precioSugerido = sugerido;
+      utilidadExtra = (sugerido - precioPromedio) * a.unidades;
+    }
+  }
+
+  return {
+    id: a.id,
+    nombre: a.nombre,
+    categoria: a.categoria,
+    unidades: a.unidades,
+    ingresos: a.ingresos,
+    costo: a.costo,
+    utilidadBruta,
+    perdidaVencimiento: perdida,
+    utilidad,
+    margenBruto,
+    margen: a.ingresos > 0 ? (utilidad / a.ingresos) * 100 : 0,
+    precioPromedio,
+    costoUnidad,
+    gananciaUnidad,
+    estado,
+    motivo,
+    precioSugerido,
+    utilidadExtra,
+  };
+}
+
+export async function getProductProfitability({
+  startDate,
+  endDate,
+}: Params): Promise<{ success: boolean; data?: RentabilidadData; error?: string }> {
   try {
-    const { startDate, endDate } = params
+    const actual = rangoReporte(startDate, endDate);
+    const prev = rangoAnterior(startDate, endDate);
+    const previo = rangoReporte(prev.start, prev.end);
 
-    // 1. Obtener todas las ventas del período con sus detalles
-    const ventas = await prisma.detalleVenta.findMany({
-      where: {
-        Venta: {
-          fechaVenta: {
-            gte: new Date(startDate),
-            lte: new Date(endDate)
-          },
-          estado: 1
-        }
-      },
-      include: {
-        StockVenta: {
-          include: {
-            Producto: {
-              include: {
-                Categoria: true
-              }
-            }
-          }
-        }
+    // Mismo costo promedio que el Estado financiero → las cifras coinciden
+    const costos = await getCostoPromedioBase(actual.endDate);
+
+    const [ventasAct, ventasPrev, vencAct, vencPrev] = await Promise.all([
+      ventasPorProducto(actual.startDate, actual.endDate, costos),
+      ventasPorProducto(previo.startDate, previo.endDate, costos),
+      cargarVencidos(actual.startDate, actual.endDate),
+      cargarVencidos(previo.startDate, previo.endDate),
+    ]);
+
+    // Productos con mercadería vencida pero sin ventas en el período también cuentan
+    for (const v of vencAct) {
+      if (!ventasAct.has(v.productoID)) {
+        ventasAct.set(v.productoID, {
+          id: v.productoID,
+          nombre: v.producto,
+          categoria: v.categoria,
+          unidades: 0,
+          ingresos: 0,
+          costo: 0,
+        });
       }
-    })
-
-    // 2. Obtener todas las compras del período (para calcular costos)
-    const compras = await prisma.detalleCompra.findMany({
-      where: {
-        Compra: {
-          fechaRegistro: {
-            lte: new Date(endDate) // Todas las compras hasta la fecha final
-          },
-          estado: 1
-        },
-        estado: 1
-      },
-      include: {
-        Producto: {
-          include: {
-            Categoria: true
-          }
-        },
-        UnidadMedida: true
-      }
-    })
-
-    // 3. Obtener conversiones de unidades para calcular unidades base
-    const conversiones = await prisma.conversionUnidad.findMany({
-      where: {
-        estado: 1
-      }
-    })
-
-    // 4. Calcular costo promedio ponderado por unidad base para cada producto
-    const costoPorProducto = new Map<number, {
-      costoPromedioUnidadBase: number
-      totalUnidadesCompradas: number
-    }>()
-
-    // Agrupar compras por producto
-    const comprasPorProducto = compras.reduce((acc, compra) => {
-      if (!acc[compra.productoID]) {
-        acc[compra.productoID] = []
-      }
-      acc[compra.productoID].push(compra)
-      return acc
-    }, {} as Record<number, typeof compras>)
-
-    // Calcular costo promedio ponderado para cada producto
-    for (const [productoID, comprasProducto] of Object.entries(comprasPorProducto)) {
-      let totalCostoEnUnidadesBase = 0
-      let totalUnidadesBase = 0
-
-      for (const compra of comprasProducto) {
-        // Encontrar el factor de conversión para esta unidad de medida
-        const conversion = conversiones.find(
-          c => c.productoID === compra.productoID && 
-               c.unidadOrigenID === compra.unidadMedidaID
-        )
-
-        const factorConversion = conversion?.factorConversion.toNumber() || 1
-
-        // Cantidad en unidades base = cantidad comprada × factor de conversión
-        const cantidadUnidadesBase = compra.cantidadComprada.toNumber() * factorConversion
-
-        // Costo por unidad base = precio unitario / factor de conversión
-        const costoUnidadBase = compra.precioUnitario.toNumber() / factorConversion
-
-        // Costo total de esta compra en unidades base
-        const costoTotalCompra = cantidadUnidadesBase * costoUnidadBase
-
-        totalCostoEnUnidadesBase += costoTotalCompra
-        totalUnidadesBase += cantidadUnidadesBase
-      }
-
-      // Costo promedio ponderado por unidad base
-      const costoPromedioUnidadBase = totalUnidadesBase > 0 
-        ? totalCostoEnUnidadesBase / totalUnidadesBase 
-        : 0
-
-      costoPorProducto.set(Number(productoID), {
-        costoPromedioUnidadBase,
-        totalUnidadesCompradas: totalUnidadesBase
-      })
     }
 
-    // 5. Agrupar ventas por producto y calcular métricas
-    const ventasPorProducto = ventas.reduce((acc, venta) => {
-      const productoID = venta.StockVenta.productoID
-      
-      if (!acc[productoID]) {
-        acc[productoID] = {
-          id: productoID,
-          nombre: venta.StockVenta.Producto.nombre,
-          categoria: venta.StockVenta.Producto.Categoria.nombre,
-          cantidadVendida: 0,
-          cantidadUnidadesBase: 0,
-          ingresosVentas: 0,
-          costoCompras: 0,
-          utilidadBruta: 0,
-          margenUtilidad: 0,
-          precioVentaPromedio: 0,
-          costoPromedio: 0,
-          rotacion: 0
-        }
-      }
+    const productos = Array.from(ventasAct.values())
+      .map((a) => armarProducto(a, vencAct, costos))
+      .sort((a, b) => b.utilidad - a.utilidad);
 
-      const cantidadUnidadesBase = venta.cantidadUnidadesBase.toNumber()
-      const ingresoVenta = venta.total.toNumber()
+    const catMap = new Map<string, { utilidad: number; ingresos: number }>();
 
-      // Obtener el costo promedio por unidad base de este producto
-      const costoInfo = costoPorProducto.get(productoID)
-      const costoUnidadBase = costoInfo?.costoPromedioUnidadBase || 0
+    for (const p of productos) {
+      const c = catMap.get(p.categoria) ?? { utilidad: 0, ingresos: 0 };
 
-      // Costo total de estas unidades vendidas
-      const costoTotalVenta = cantidadUnidadesBase * costoUnidadBase
+      c.utilidad += p.utilidad;
+      c.ingresos += p.ingresos;
+      catMap.set(p.categoria, c);
+    }
 
-      acc[productoID].cantidadVendida += venta.cantidadVendida.toNumber()
-      acc[productoID].cantidadUnidadesBase += cantidadUnidadesBase
-      acc[productoID].ingresosVentas += ingresoVenta
-      acc[productoID].costoCompras += costoTotalVenta
+    const anterior = totales(
+      Array.from(ventasPrev.values()).map((a) => ({
+        ingresos: a.ingresos,
+        costo: a.costo,
+        perdidaVencimiento: vencPrev.filter((v) => v.productoID === a.id).reduce((s, v) => s + v.costo, 0),
+      })),
+    );
+    // Pérdida del período anterior de productos que no tuvieron ventas
+    const idsPrev = new Set(Array.from(ventasPrev.keys()));
+    const perdidaSinVentasPrev = vencPrev.filter((v) => !idsPrev.has(v.productoID)).reduce((s, v) => s + v.costo, 0);
 
-      return acc
-    }, {} as Record<number, any>)
-
-    // 6. Calcular utilidad y márgenes
-    const productos = Object.values(ventasPorProducto).map((p: any) => {
-      const utilidadBruta = p.ingresosVentas - p.costoCompras
-      const margenUtilidad = p.ingresosVentas > 0 
-        ? (utilidadBruta / p.ingresosVentas) * 100 
-        : 0
-      
-      const precioVentaPromedio = p.cantidadUnidadesBase > 0
-        ? p.ingresosVentas / p.cantidadUnidadesBase
-        : 0
-      
-      const costoPromedio = p.cantidadUnidadesBase > 0
-        ? p.costoCompras / p.cantidadUnidadesBase
-        : 0
-
-      const costoInfo = costoPorProducto.get(p.id)
-      const rotacion = costoInfo && costoInfo.totalUnidadesCompradas > 0
-        ? (p.cantidadUnidadesBase / costoInfo.totalUnidadesCompradas) * 100
-        : 0
-
-      return {
-        ...p,
-        utilidadBruta,
-        margenUtilidad,
-        precioVentaPromedio,
-        costoPromedio,
-        rotacion
-      }
-    })
-
-    // Ordenar por utilidad bruta descendente
-    productos.sort((a, b) => b.utilidadBruta - a.utilidadBruta)
-
-    // 7. Extraer los más y menos rentables
-    const topRentables = productos.slice(0, 10)
-    const menosRentables = productos.slice(-10).reverse()
-
-    // 8. Calcular estadísticas generales
-    const totalProductos = productos.length
-    const productosRentables = productos.filter(p => p.utilidadBruta > 0).length
-    const productosNoRentables = productos.filter(p => p.utilidadBruta <= 0).length
-    const utilidadTotalProductos = productos.reduce((sum, p) => sum + p.utilidadBruta, 0)
-    const margenPromedioGeneral = productos.length > 0
-      ? productos.reduce((sum, p) => sum + p.margenUtilidad, 0) / productos.length
-      : 0
-
-    // 9. Agrupar por categoría
-    const ventasPorCategoria = productos.reduce((acc, p) => {
-      if (!acc[p.categoria]) {
-        acc[p.categoria] = {
-          categoria: p.categoria,
-          utilidad: 0,
-          ingresos: 0,
-          cantidadProductos: 0
-        }
-      }
-      
-      acc[p.categoria].utilidad += p.utilidadBruta
-      acc[p.categoria].ingresos += p.ingresosVentas
-      acc[p.categoria].cantidadProductos += 1
-      
-      return acc
-    }, {} as Record<string, any>)
-
-    const ventasPorCategoriaArray = Object.values(ventasPorCategoria).map((c: any) => ({
-      ...c,
-      margen: c.ingresos > 0 ? (c.utilidad / c.ingresos) * 100 : 0
-    }))
-
-    // 10. Comparación costo vs precio de venta (Top 15)
-    const comparacionCostoVenta = productos.slice(0, 15).map(p => ({
-      producto: p.nombre,
-      costoUnitario: p.costoPromedio,
-      precioVenta: p.precioVentaPromedio,
-      margen: p.margenUtilidad
-    }))
+    anterior.perdidaVencimiento += perdidaSinVentasPrev;
+    anterior.utilidad -= perdidaSinVentasPrev;
+    anterior.margen = anterior.ingresos > 0 ? (anterior.utilidad / anterior.ingresos) * 100 : 0;
 
     return {
       success: true,
       data: {
+        rango: { start: startDate, end: endDate, dias: diasEnRango(startDate, endDate) },
+        margenMinimo: MARGEN_MINIMO,
+        actual: totales(productos),
+        anterior,
         productos,
-        topRentables,
-        menosRentables,
-        estadisticas: {
-          totalProductos,
-          productosRentables,
-          productosNoRentables,
-          utilidadTotalProductos,
-          margenPromedioGeneral
-        },
-        ventasPorCategoria: ventasPorCategoriaArray,
-        comparacionCostoVenta
-      }
-    }
-
+        categorias: Array.from(catMap.entries())
+          .map(([categoria, v]) => ({ categoria, ...v }))
+          .sort((a, b) => b.utilidad - a.utilidad),
+        aRevisar: productos.filter((p) => p.estado !== "ok").sort((a, b) => a.utilidad - b.utilidad),
+      },
+    };
   } catch (error) {
-    console.error("Error en getProductProfitability:", error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Error desconocido al calcular rentabilidad"
-    }
+    console.error("Error en getProductProfitability:", error);
+
+    return { success: false, error: "Error al calcular la rentabilidad" };
   }
 }

@@ -5,7 +5,7 @@
   "identifier": "com.micromercado.anita",
   "build": {
     "devUrl": "http://localhost:3000",
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "pnpm dev",
     "beforeBuildCommand": "echo 'No build needed'"
   },
   "app": {

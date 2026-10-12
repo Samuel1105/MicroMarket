@@ -138,7 +138,7 @@ export default function AddPurchaseForm({ children }: { children: React.ReactNod
               <div className="space-y-2">
                 <div className="flex justify-between"><span>Subtotal:</span><span className="font-medium">Bs. {totals.subtotal.toFixed(2)}</span></div>
                 <div className="flex justify-between"><span>Descuento Total:</span><span className="font-medium text-red-600">- Bs. {totals.totalDescuento.toFixed(2)}</span></div>
-                <div className="border-t pt-2"><div className="flex justify-between font-bold text-lg"><span>Total Final:</span><span className="text-blue-600">Bs. {totals.total.toFixed(2)}</span></div></div>
+                <div className="border-t pt-2"><div className="flex justify-between font-bold text-lg"><span>Total Final:</span><span className="text-primary-600">Bs. {totals.total.toFixed(2)}</span></div></div>
               </div>
               <div className="md:col-span-2 space-y-3 text-sm text-gray-700">
                 <p><strong>Proveedor:</strong> {selectedSupplierId ? 'Seleccionado' : 'No seleccionado'}</p>

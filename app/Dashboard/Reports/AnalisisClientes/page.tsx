@@ -1,710 +1,323 @@
-"use client"
+"use client";
 
-import React, { useState, useEffect } from 'react'
-import { Card, CardBody, DateRangePicker, Button, Spinner, Chip, Progress } from '@heroui/react'
-import { Icon } from '@iconify/react'
-import { parseDate } from '@internationalized/date'
+import { Chip, Spinner } from "@heroui/react";
+import { Icon } from "@iconify/react";
+import React, { useEffect, useMemo, useState } from "react";
 
-import type { EChartsOption } from 'echarts'
-import BaseChart from '@/components/dashboard/BaseChart'
+import {
+  AnalisisClientesData,
+  getCustomerAnalysis,
+  SegmentoCliente,
+} from "@/actions/reportes/reporte-analisis-clientes";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+import BaseChart from "@/components/dashboard/BaseChart";
+import ChartCard from "@/components/reports/ChartCard";
+import { COLORS, hBarOption } from "@/components/reports/chart-options";
+import Insights, { Insight } from "@/components/reports/Insights";
+import Kpi from "@/components/reports/Kpi";
+import ReportHeader, { ReportRange } from "@/components/reports/ReportHeader";
+import SplitBar from "@/components/reports/SplitBar";
+import { formatRangoEs, getCurrentMonthRange } from "@/src/utils/report-dates";
+import { bs, num, pct, variacion } from "@/src/utils/report-format";
 
-// ============================================
-// TYPES
-// ============================================
-type CustomerData = {
-  clientes: Array<{
-    clienteID: number
-    nombre: string
-    carnet: string
-    numeroCompras: number
-    totalGastado: number
-    ticketPromedio: number
-    ultimaCompra: Date
-    primeraCompra: Date
-    segmento: 'vip' | 'frecuente' | 'ocasional' | 'nuevo'
-    valor: 'alto' | 'medio' | 'bajo'
-  }>
-  topFrecuentes: Array<{
-    nombre: string
-    numeroCompras: number
-    totalGastado: number
-    ticketPromedio: number
-  }>
-  topGastadores: Array<{
-    nombre: string
-    numeroCompras: number
-    totalGastado: number
-    ticketPromedio: number
-  }>
-  topTicketPromedio: Array<{
-    nombre: string
-    numeroCompras: number
-    totalGastado: number
-    ticketPromedio: number
-  }>
-  topProductosPorSegmento: {
-    vip: Array<{ producto: string; cantidad: number; totalGastado: number }>
-    frecuente: Array<{ producto: string; cantidad: number; totalGastado: number }>
-    ocasional: Array<{ producto: string; cantidad: number; totalGastado: number }>
-    nuevo: Array<{ producto: string; cantidad: number; totalGastado: number }>
+const SEGMENTOS: Record<SegmentoCliente, { label: string; regla: string; color: "success" | "primary" | "warning" | "default" }> = {
+  vip: { label: "VIP", regla: "5 o más compras y Bs. 500 o más", color: "success" },
+  frecuente: { label: "Frecuente", regla: "3 o más compras", color: "primary" },
+  ocasional: { label: "Ocasional", regla: "2 compras", color: "warning" },
+  nuevo: { label: "Una compra", regla: "1 sola compra", color: "default" },
+};
+
+const fechaEs = (iso: string) => iso.split("-").reverse().join("/");
+
+function buildInsights(d: AnalisisClientesData): Insight[] {
+  const items: Insight[] = [];
+  const total = d.ventasIdentificadas + d.ventasGenerales;
+
+  if (total === 0) {
+    return [{ tone: "warn", text: `No hay ventas entre ${formatRangoEs(d.rango.start, d.rango.end)}. Prueba con otro rango.` }];
   }
-  estadisticas: {
-    totalClientes: number
-    clientesVIP: number
-    clientesFrecuentes: number
-    clientesOcasionales: number
-    clientesNuevos: number
-    clientesRecurrentes: number
-    tasaRetencion: number
-    clientesAltoValor: number
-    clientesMedioValor: number
-    clientesBajoValor: number
-    totalVentas: number
-    totalIngresos: number
-    ticketPromedioGeneral: number
-    comprasPorCliente: number
-    promedioCompras: number
-    promedioGasto: number
+
+  if (d.activos > 0) {
+    const pRec = (d.recurrentes / d.activos) * 100;
+
+    items.push({
+      tone: pRec >= 50 ? "good" : "info",
+      text: `${d.recurrentes} de tus ${d.activos} clientes ya te habían comprado antes (${pct(pRec, 0)}) y ${d.nuevos} ${
+        d.nuevos === 1 ? "es nuevo" : "son nuevos"
+      }. ${pRec < 50 ? "Vas ganando clientes nuevos pero fidelizas poco: ofrece algo para que vuelvan." : "Buena fidelidad."}`,
+    });
   }
-  periodo: {
-    inicio: string
-    fin: string
+
+  const vip = d.segmentos.find((s) => s.segmento === "vip");
+
+  if (vip && vip.clientes > 0 && d.ventasIdentificadas > 0) {
+    items.push({
+      tone: "info",
+      text: `${vip.clientes} ${vip.clientes === 1 ? "cliente VIP concentra" : "clientes VIP concentran"} el ${pct((vip.gasto / d.ventasIdentificadas) * 100, 0)} de lo que compran tus clientes registrados. Cuídalos: un aviso de ofertas o un pequeño descuento.`,
+    });
   }
+
+  if (d.enRiesgo.length > 0) {
+    items.push({
+      tone: "warn",
+      text: `${d.enRiesgo.length} ${d.enRiesgo.length === 1 ? "cliente que compraba seguido no vuelve" : "clientes que compraban seguido no vuelven"} hace más de 30 días. Contáctalos: es más barato recuperar que conseguir uno nuevo.`,
+    });
+  }
+
+  if (total > 0 && d.ventasGenerales / total > 0.5) {
+    items.push({
+      tone: "info",
+      text: `El ${pct((d.ventasGenerales / total) * 100, 0)} de tus ventas se hizo como “cliente general”. Pide el carnet cuando puedas: sin datos no puedes saber quién te compra ni volver a contactarlo.`,
+    });
+  }
+
+  return items;
 }
 
 export default function CustomerAnalysisReport() {
-  const [dateRange, setDateRange] = useState({
-    start: parseDate(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]),
-    end: parseDate(new Date().toISOString().split('T')[0])
-  })
-  
-  const [loading, setLoading] = useState(false)
-  const [data, setData] = useState<CustomerData | null>(null)
-
-  const loadData = async () => {
-    setLoading(true)
-    try {
-      const startDate = `${dateRange.start.year}-${String(dateRange.start.month).padStart(2, '0')}-${String(dateRange.start.day).padStart(2, '0')}`
-      const endDate = `${dateRange.end.year}-${String(dateRange.end.month).padStart(2, '0')}-${String(dateRange.end.day).padStart(2, '0')}`
-      
-      const { getCustomerAnalysis } = await import('@/actions/reportes/reporte-analisis-clientes')
-      const response = await getCustomerAnalysis({ startDate, endDate })
-      
-      if (response.success && response.data) {
-        setData(response.data)
-      }
-      
-    } catch (error) {
-      console.error('Error cargando análisis de clientes:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const [range, setRange] = useState<ReportRange>(getCurrentMonthRange());
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [data, setData] = useState<AnalisisClientesData | null>(null);
 
   useEffect(() => {
-    loadData()
-  }, [])
+    let cancelado = false;
 
-  // ============================================
-  // HELPERS
-  // ============================================
-  const getSegmentoConfig = (segmento: string) => {
-    switch (segmento) {
-      case 'vip':
-        return {
-          label: 'VIP',
-          icon: 'mdi:star-circle',
-          color: 'warning',
-          bgColor: 'from-yellow-50 to-yellow-100',
-          iconBg: 'bg-yellow-500'
-        }
-      case 'frecuente':
-        return {
-          label: 'Frecuente',
-          icon: 'mdi:account-multiple',
-          color: 'success',
-          bgColor: 'from-green-50 to-green-100',
-          iconBg: 'bg-green-500'
-        }
-      case 'ocasional':
-        return {
-          label: 'Ocasional',
-          icon: 'mdi:account-clock-outline',
-          color: 'primary',
-          bgColor: 'from-blue-50 to-blue-100',
-          iconBg: 'bg-blue-500'
-        }
-      case 'nuevo':
-        return {
-          label: 'Nuevo',
-          icon: 'mdi:account-plus-outline',
-          color: 'secondary',
-          bgColor: 'from-purple-50 to-purple-100',
-          iconBg: 'bg-purple-500'
-        }
-      default:
-        return {
-          label: 'Cliente',
-          icon: 'mdi:account',
-          color: 'default',
-          bgColor: 'from-gray-50 to-gray-100',
-          iconBg: 'bg-gray-500'
-        }
-    }
-  }
+    setLoading(true);
+    setError(null);
+    getCustomerAnalysis({ startDate: range.start, endDate: range.end })
+      .then((res) => {
+        if (cancelado) return;
+        if (res.success && res.data) setData(res.data);
+        else setError(res.error || "No se pudo cargar el reporte");
+      })
+      .catch(() => !cancelado && setError("No se pudo conectar con el servidor"))
+      .finally(() => !cancelado && setLoading(false));
 
-  const getValorColor = (valor: string) => {
-    switch (valor) {
-      case 'alto': return 'success'
-      case 'medio': return 'primary'
-      case 'bajo': return 'warning'
-      default: return 'default'
-    }
-  }
+    return () => {
+      cancelado = true;
+    };
+  }, [range.start, range.end]);
 
-  // ============================================
-  // GRÁFICOS
-  // ============================================
+  const insights = useMemo(() => (data ? buildInsights(data) : []), [data]);
+  const total = data ? data.ventasIdentificadas + data.ventasGenerales : 0;
+  const sinVentas = total === 0;
 
-  const getSegmentacionChartOptions = (): EChartsOption => {
-    if (!data) return {}
-    
-    return {
-      title: {
-        text: 'Distribución de Clientes por Segmento',
-        left: 'center',
-        textStyle: { fontSize: 18, fontWeight: 'bold', color: '#1f2937' }
-      },
-      tooltip: {
-        trigger: 'item',
-        formatter: (params: any) => {
-          return `<strong>${params.name}</strong><br/>
-                  Clientes: <strong>${params.value}</strong><br/>
-                  Porcentaje: <strong>${params.percent.toFixed(1)}%</strong>`
-        }
-      },
-      legend: {
-        orient: 'vertical',
-        left: 'left',
-        top: 50
-      },
-      series: [
-        {
-          type: 'pie',
-          radius: ['40%', '70%'],
-          center: ['60%', '50%'],
-          data: [
-            { value: data.estadisticas.clientesVIP, name: 'VIP', itemStyle: { color: '#f59e0b' } },
-            { value: data.estadisticas.clientesFrecuentes, name: 'Frecuentes', itemStyle: { color: '#10b981' } },
-            { value: data.estadisticas.clientesOcasionales, name: 'Ocasionales', itemStyle: { color: '#3b82f6' } },
-            { value: data.estadisticas.clientesNuevos, name: 'Nuevos', itemStyle: { color: '#8b5cf6' } }
-          ],
-          label: {
-            formatter: '{b}: {c}',
-            fontSize: 12
-          },
-          emphasis: {
-            itemStyle: {
-              shadowBlur: 10,
-              shadowOffsetX: 0,
-              shadowColor: 'rgba(0, 0, 0, 0.5)'
-            }
-          }
-        }
-      ]
-    }
-  }
+  const top = useMemo(
+    () =>
+      data
+        ? hBarOption(
+            data.clientes.slice(0, 10).map((c) => ({ name: c.nombre, value: c.gasto })),
+            { color: COLORS.ventas },
+          )
+        : null,
+    [data],
+  );
 
-  const getTopGastadoresChartOptions = (): EChartsOption => {
-    if (!data) return {}
-    
-    return {
-      title: {
-        text: 'Top 10 Clientes por Gasto Total',
-        left: 'center',
-        textStyle: { fontSize: 18, fontWeight: 'bold', color: '#1f2937' }
-      },
-      tooltip: {
-        trigger: 'axis',
-        axisPointer: { type: 'shadow' },
-        formatter: (params: any) => {
-          const item = data.topGastadores[params[0].dataIndex]
-          return `<strong>${item.nombre}</strong><br/>
-                  Total gastado: <strong>Bs. ${item.totalGastado.toFixed(2)}</strong><br/>
-                  Compras: <strong>${item.numeroCompras}</strong><br/>
-                  Ticket promedio: <strong>Bs. ${item.ticketPromedio.toFixed(2)}</strong>`
-        }
-      },
-      grid: {
-        left: '3%',
-        right: '4%',
-        bottom: '3%',
-        top: '15%',
-        containLabel: true
-      },
-      xAxis: {
-        type: 'value',
-        axisLabel: {
-          formatter: (value: number) => `Bs. ${value.toFixed(0)}`
-        }
-      },
-      yAxis: {
-        type: 'category',
-        data: data.topGastadores.map(c => c.nombre.length > 20 ? c.nombre.substring(0, 20) + '...' : c.nombre),
-        axisLabel: {
-          interval: 0,
-          fontSize: 10
-        }
-      },
-      series: [
-        {
-          name: 'Gasto Total',
-          type: 'bar',
-          data: data.topGastadores.map(c => c.totalGastado.toFixed(2)),
-          itemStyle: {
-            color: {
-              type: 'linear',
-              x: 0, y: 0, x2: 1, y2: 0,
-              colorStops: [
-                { offset: 0, color: '#10b981' },
-                { offset: 1, color: '#059669' }
-              ]
-            },
-            borderRadius: [0, 5, 5, 0]
-          },
-          label: {
-            show: true,
-            position: 'right',
-            formatter: (params: any) => `Bs. ${Number(params.value).toFixed(0)}`,
-            fontSize: 10
-          }
-        }
-      ]
-    }
-  }
-
-  const getTopFrecuentesChartOptions = (): EChartsOption => {
-    if (!data) return {}
-    
-    return {
-      title: {
-        text: 'Top 10 Clientes por Frecuencia',
-        left: 'center',
-        textStyle: { fontSize: 18, fontWeight: 'bold', color: '#1f2937' }
-      },
-      tooltip: {
-        trigger: 'axis',
-        axisPointer: { type: 'shadow' },
-        formatter: (params: any) => {
-          const item = data.topFrecuentes[params[0].dataIndex]
-          return `<strong>${item.nombre}</strong><br/>
-                  Compras: <strong>${item.numeroCompras}</strong><br/>
-                  Total gastado: <strong>Bs. ${item.totalGastado.toFixed(2)}</strong><br/>
-                  Ticket promedio: <strong>Bs. ${item.ticketPromedio.toFixed(2)}</strong>`
-        }
-      },
-      grid: {
-        left: '3%',
-        right: '4%',
-        bottom: '3%',
-        top: '15%',
-        containLabel: true
-      },
-      xAxis: {
-        type: 'value',
-        axisLabel: {
-          formatter: (value: number) => `${value} compras`
-        }
-      },
-      yAxis: {
-        type: 'category',
-        data: data.topFrecuentes.map(c => c.nombre.length > 20 ? c.nombre.substring(0, 20) + '...' : c.nombre),
-        axisLabel: {
-          interval: 0,
-          fontSize: 10
-        }
-      },
-      series: [
-        {
-          name: 'Número de Compras',
-          type: 'bar',
-          data: data.topFrecuentes.map(c => c.numeroCompras),
-          itemStyle: {
-            color: {
-              type: 'linear',
-              x: 0, y: 0, x2: 1, y2: 0,
-              colorStops: [
-                { offset: 0, color: '#3b82f6' },
-                { offset: 1, color: '#2563eb' }
-              ]
-            },
-            borderRadius: [0, 5, 5, 0]
-          },
-          label: {
-            show: true,
-            position: 'right',
-            formatter: (params: any) => `${params.value} compras`,
-            fontSize: 10
-          }
-        }
-      ]
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Spinner size="lg" label="Analizando clientes..." />
-      </div>
-    )
-  }
-
-  if (!data) return null
+  const segmentos = useMemo(
+    () =>
+      data
+        ? hBarOption(
+            data.segmentos
+              .filter((s) => s.clientes > 0)
+              .map((s) => ({ name: `${SEGMENTOS[s.segmento].label} (${s.clientes})`, value: s.gasto })),
+            { color: COLORS.traslado },
+          )
+        : null,
+    [data],
+  );
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-7xl">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2 flex items-center gap-3">
-          <Icon icon="mdi:account-group" className="text-blue-600" />
-          Análisis de Clientes
-        </h1>
-        <p className="text-gray-600">Conozca a sus clientes y diseñe estrategias para fidelizarlos</p>
-      </div>
+    <ProtectedRoute allowedRoles={[1, 2]}>
+      <div className="p-4 md:p-8 space-y-5">
+        <ReportHeader
+          crumb="Análisis de clientes"
+          question="¿Quiénes son mis mejores clientes, cuántos vuelven y a quiénes debo recuperar?"
+          range={range}
+          title="Análisis de clientes"
+          onRangeChange={setRange}
+        />
 
-      {/* Filtro de fechas */}
-      <Card className="mb-6 shadow-md">
-        <CardBody>
-          <div className="flex flex-col md:flex-row gap-4 items-end">
-            <div className="flex-1">
-              <DateRangePicker
-                label="Rango de fechas"
-                value={dateRange}
-                onChange={setDateRange}
-                className="max-w-md"
-              />
-            </div>
-            <Button 
-              color="primary" 
-              onPress={loadData}
-              isLoading={loading}
-              startContent={!loading && <Icon icon="material-symbols:search" />}
-            >
-              Analizar Clientes
-            </Button>
+        {error && <div className="rounded-2xl border border-red-200 bg-red-50 text-red-700 text-sm p-4">{error}</div>}
+
+        {loading && !data ? (
+          <div className="flex justify-center py-24">
+            <Spinner label="Calculando..." size="lg" />
           </div>
-        </CardBody>
-      </Card>
-
-      {/* Cards de estadísticas generales */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-l-4 border-blue-500 shadow-md">
-          <CardBody>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-gray-600 font-medium mb-1">Total Clientes</p>
-                <p className="text-3xl font-bold text-blue-700">
-                  {data.estadisticas.totalClientes}
-                </p>
+        ) : (
+          data && (
+            <div className={`space-y-5 mt-4 transition-opacity ${loading ? "opacity-50" : ""}`}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                <Kpi
+                  definition="Clientes registrados que compraron al menos una vez en el período. No incluye al “cliente general”."
+                  delta={variacion(data.activos, data.activosAnterior)}
+                  hint={`${data.registrados} ${data.registrados === 1 ? "cliente se registró" : "clientes se registraron"} en el período`}
+                  icon="heroicons:users"
+                  label="Clientes que compraron"
+                  value={String(data.activos)}
+                />
+                <Kpi
+                  definition="Nuevos: su primera compra fue en este período. Recurrentes: ya te habían comprado antes."
+                  hint={`${data.nuevos} nuevos · ${data.recurrentes} recurrentes`}
+                  icon="heroicons:arrow-path"
+                  label="Clientes que vuelven"
+                  tone="secondary"
+                  value={data.activos ? pct((data.recurrentes / data.activos) * 100, 0) : "—"}
+                />
+                <Kpi
+                  definition="Lo que gasta en promedio un cliente registrado en cada compra."
+                  delta={variacion(data.ticketPromedio, data.ticketPromedioAnterior)}
+                  hint="Por compra, solo clientes registrados"
+                  icon="heroicons:shopping-bag"
+                  label="Compra promedio"
+                  value={bs(data.ticketPromedio)}
+                />
+                <Kpi
+                  definition="Clientes con historial que compraron 2 o más veces pero llevan más de 30 días sin volver."
+                  hint="Más de 30 días sin comprar"
+                  icon="heroicons:user-minus"
+                  label="Clientes en riesgo"
+                  tone={data.enRiesgo.length ? "danger" : "success"}
+                  value={String(data.enRiesgo.length)}
+                />
               </div>
-              <div className="bg-blue-500 p-3 rounded-full">
-                <Icon icon="mdi:account-group" className="text-2xl text-white" />
+
+              <Insights items={insights} />
+
+              {!sinVentas && (
+                <div className="rounded-2xl bg-white border border-default-200 shadow-sm p-5">
+                  <h3 className="font-bold text-base">¿Sé quién me compra?</h3>
+                  <p className="text-xs text-gray-500 mb-4">
+                    Ventas a clientes registrados frente a ventas rápidas como “cliente general”.
+                  </p>
+                  <SplitBar
+                    remainder={{
+                      label: "Cliente general",
+                      value: data.ventasGenerales,
+                      color: COLORS.gris,
+                      note: "Sin datos: no puedes volver a contactarlos",
+                    }}
+                    segments={[
+                      {
+                        label: "Clientes registrados",
+                        value: data.ventasIdentificadas,
+                        color: COLORS.ventas,
+                        note: "Sabes quiénes son",
+                      },
+                    ]}
+                    total={total}
+                    totalLabel="Ventas del período"
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <ChartCard
+                  empty={data.clientes.length === 0}
+                  subtitle="Quién gastó más en el período"
+                  title="Mejores clientes"
+                >
+                  {top && <BaseChart height={`${Math.max(220, Math.min(10, data.clientes.length) * 38 + 20)}px`} option={top} />}
+                </ChartCard>
+
+                <ChartCard
+                  empty={data.clientes.length === 0}
+                  subtitle="Cuánto gasta cada tipo de cliente (entre paréntesis, cuántos son)"
+                  title="¿Quién sostiene mis ventas?"
+                >
+                  {segmentos && <BaseChart height="260px" option={segmentos} />}
+                </ChartCard>
+              </div>
+
+              {data.enRiesgo.length > 0 && (
+                <div className="space-y-3">
+                  <div className="px-1">
+                    <h3 className="font-bold text-base">Clientes que dejaron de venir</h3>
+                    <p className="text-xs text-gray-500">
+                      Compraban seguido y llevan más de 30 días sin volver. Los que más te compraron, primero.
+                    </p>
+                  </div>
+                  {data.enRiesgo.map((c) => (
+                    <div key={c.id} className="rounded-2xl border border-default-200 bg-white shadow-sm p-4 sm:p-5">
+                      <div className="flex items-start gap-4">
+                        <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                          <Icon height="22" icon="heroicons:user-minus" width="22" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-semibold">{c.nombre}</p>
+                            <Chip color="warning" size="sm" variant="flat">
+                              {c.diasSinComprar} días sin comprar
+                            </Chip>
+                          </div>
+                          <p className="text-sm text-gray-600 mt-1">
+                            Última compra el {fechaEs(c.ultimaCompra)} · {c.comprasHistoricas} compras en total ·{" "}
+                            {bs(c.gastoHistorico, 0)} gastados · CI {c.carnet}
+                          </p>
+                          {c.correo && (
+                            <p className="text-sm text-secondary-800 bg-secondary-50 rounded-lg px-3 py-2 mt-2">
+                              <b>Qué hacer:</b> escríbele a {c.correo} con una oferta de sus productos habituales.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {data.clientes.length > 0 && (
+                <div className="space-y-3">
+                  <div className="px-1">
+                    <h3 className="font-bold text-base">Clientes del período</h3>
+                    <p className="text-xs text-gray-500">De quien más gastó a quien menos.</p>
+                  </div>
+                  {data.clientes.map((c) => (
+                    <div
+                      key={c.id}
+                      className="rounded-2xl border border-default-200 bg-white shadow-sm p-4 flex items-center gap-4"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-semibold">{c.nombre}</p>
+                          <Chip color={SEGMENTOS[c.segmento].color} size="sm" variant="flat">
+                            {SEGMENTOS[c.segmento].label}
+                          </Chip>
+                          {c.esNuevo && (
+                            <Chip color="secondary" size="sm" variant="flat">
+                              Nuevo
+                            </Chip>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-600 mt-0.5">
+                          {c.compras} {c.compras === 1 ? "compra" : "compras"} · {bs(c.ticket)} por compra · última el{" "}
+                          {fechaEs(c.ultimaCompra)}
+                        </p>
+                      </div>
+                      <p className="font-bold tabular-nums shrink-0">{bs(c.gasto)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="rounded-2xl bg-white border border-default-200 shadow-sm p-5">
+                <h3 className="font-bold text-base mb-2">Cómo se clasifica a un cliente</h3>
+                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm text-gray-600">
+                  {(Object.keys(SEGMENTOS) as SegmentoCliente[]).map((k) => (
+                    <li key={k}>
+                      <b className="text-gray-800">{SEGMENTOS[k].label}:</b> {SEGMENTOS[k].regla} en el período
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-gray-500 mt-3">
+                  Las ventas hechas como “cliente general” no se analizan por cliente. Clientes registrados en el período:{" "}
+                  {num(data.registrados)}.
+                </p>
               </div>
             </div>
-          </CardBody>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-l-4 border-green-500 shadow-md">
-          <CardBody>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-gray-600 font-medium mb-1">Tasa de Retención</p>
-                <p className="text-3xl font-bold text-green-700">
-                  {data.estadisticas.tasaRetencion.toFixed(1)}%
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {data.estadisticas.clientesRecurrentes} regresan
-                </p>
-              </div>
-              <div className="bg-green-500 p-3 rounded-full">
-                <Icon icon="mdi:account-check" className="text-2xl text-white" />
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-l-4 border-purple-500 shadow-md">
-          <CardBody>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-gray-600 font-medium mb-1">Ticket Promedio</p>
-                <p className="text-2xl font-bold text-purple-700">
-                  Bs. {data.estadisticas.ticketPromedioGeneral.toFixed(2)}
-                </p>
-              </div>
-              <div className="bg-purple-500 p-3 rounded-full">
-                <Icon icon="mdi:receipt-text" className="text-2xl text-white" />
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-l-4 border-orange-500 shadow-md">
-          <CardBody>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-gray-600 font-medium mb-1">Compras por Cliente</p>
-                <p className="text-3xl font-bold text-orange-700">
-                  {data.estadisticas.comprasPorCliente.toFixed(1)}
-                </p>
-              </div>
-              <div className="bg-orange-500 p-3 rounded-full">
-                <Icon icon="mdi:cart" className="text-2xl text-white" />
-              </div>
-            </div>
-          </CardBody>
-        </Card>
+          )
+        )}
       </div>
-
-      {/* Cards de segmentos */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {/* VIP */}
-        <Card className={`bg-gradient-to-br ${getSegmentoConfig('vip').bgColor} shadow-md`}>
-          <CardBody>
-            <div className="flex items-center gap-3">
-              <div className={`${getSegmentoConfig('vip').iconBg} p-3 rounded-full`}>
-                <Icon icon={getSegmentoConfig('vip').icon} className="text-2xl text-white" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600 font-medium">Clientes VIP</p>
-                <p className="text-2xl font-bold text-yellow-700">
-                  {data.estadisticas.clientesVIP}
-                </p>
-                <p className="text-xs text-gray-500">Compran más del doble</p>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-
-        {/* Frecuentes */}
-        <Card className={`bg-gradient-to-br ${getSegmentoConfig('frecuente').bgColor} shadow-md`}>
-          <CardBody>
-            <div className="flex items-center gap-3">
-              <div className={`${getSegmentoConfig('frecuente').iconBg} p-3 rounded-full`}>
-                <Icon icon={getSegmentoConfig('frecuente').icon} className="text-2xl text-white" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600 font-medium">Frecuentes</p>
-                <p className="text-2xl font-bold text-green-700">
-                  {data.estadisticas.clientesFrecuentes}
-                </p>
-                <p className="text-xs text-gray-500">Compran seguido</p>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-
-        {/* Ocasionales */}
-        <Card className={`bg-gradient-to-br ${getSegmentoConfig('ocasional').bgColor} shadow-md`}>
-          <CardBody>
-            <div className="flex items-center gap-3">
-              <div className={`${getSegmentoConfig('ocasional').iconBg} p-3 rounded-full`}>
-                <Icon icon={getSegmentoConfig('ocasional').icon} className="text-2xl text-white" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600 font-medium">Ocasionales</p>
-                <p className="text-2xl font-bold text-blue-700">
-                  {data.estadisticas.clientesOcasionales}
-                </p>
-                <p className="text-xs text-gray-500">Compran a veces</p>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-
-        {/* Nuevos */}
-        <Card className={`bg-gradient-to-br ${getSegmentoConfig('nuevo').bgColor} shadow-md`}>
-          <CardBody>
-            <div className="flex items-center gap-3">
-              <div className={`${getSegmentoConfig('nuevo').iconBg} p-3 rounded-full`}>
-                <Icon icon={getSegmentoConfig('nuevo').icon} className="text-2xl text-white" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600 font-medium">Nuevos</p>
-                <p className="text-2xl font-bold text-purple-700">
-                  {data.estadisticas.clientesNuevos}
-                </p>
-                <p className="text-xs text-gray-500">Primera compra</p>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-      </div>
-
-      {/* Gráfico de segmentación */}
-      <Card className="shadow-md mb-6">
-        <CardBody className="p-4">
-          <BaseChart 
-            option={getSegmentacionChartOptions()} 
-            height="400px"
-            loading={loading}
-          />
-        </CardBody>
-      </Card>
-
-      {/* Gráficos de top clientes */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <Card className="shadow-md">
-          <CardBody className="p-4">
-            <BaseChart 
-              option={getTopGastadoresChartOptions()} 
-              height="450px"
-              loading={loading}
-            />
-          </CardBody>
-        </Card>
-
-        <Card className="shadow-md">
-          <CardBody className="p-4">
-            <BaseChart 
-              option={getTopFrecuentesChartOptions()} 
-              height="450px"
-              loading={loading}
-            />
-          </CardBody>
-        </Card>
-      </div>
-
-      {/* Productos preferidos por segmento */}
-      <Card className="shadow-md mb-6">
-        <CardBody>
-          <h3 className="text-lg font-bold mb-4 text-gray-800 flex items-center gap-2">
-            <Icon icon="mdi:star-box" className="text-yellow-500" />
-            Productos Preferidos por Tipo de Cliente
-          </h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* VIP */}
-            <div className="bg-yellow-50 p-4 rounded-lg">
-              <div className="flex items-center gap-2 mb-3">
-                <Icon icon="mdi:star-circle" className="text-xl text-yellow-600" />
-                <h4 className="font-semibold text-yellow-800">Clientes VIP</h4>
-              </div>
-              <div className="space-y-2">
-                {data.topProductosPorSegmento.vip.slice(0, 5).map((prod, idx) => (
-                  <div key={idx} className="flex justify-between items-center text-sm">
-                    <span className="text-gray-700">{prod.producto.substring(0, 15)}...</span>
-                    <span className="font-semibold text-yellow-700">
-                      Bs. {prod.totalGastado.toFixed(0)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Frecuentes */}
-            <div className="bg-green-50 p-4 rounded-lg">
-              <div className="flex items-center gap-2 mb-3">
-                <Icon icon="mdi:account-multiple" className="text-xl text-green-600" />
-                <h4 className="font-semibold text-green-800">Frecuentes</h4>
-              </div>
-              <div className="space-y-2">
-                {data.topProductosPorSegmento.frecuente.slice(0, 5).map((prod, idx) => (
-                  <div key={idx} className="flex justify-between items-center text-sm">
-                    <span className="text-gray-700">{prod.producto.substring(0, 15)}...</span>
-                    <span className="font-semibold text-green-700">
-                      Bs. {prod.totalGastado.toFixed(0)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Ocasionales */}
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <div className="flex items-center gap-2 mb-3">
-                <Icon icon="mdi:account-clock-outline" className="text-xl text-blue-600" />
-                <h4 className="font-semibold text-blue-800">Ocasionales</h4>
-              </div>
-              <div className="space-y-2">
-                {data.topProductosPorSegmento.ocasional.slice(0, 5).map((prod, idx) => (
-                  <div key={idx} className="flex justify-between items-center text-sm">
-                    <span className="text-gray-700">{prod.producto.substring(0, 15)}...</span>
-                    <span className="font-semibold text-blue-700">
-                      Bs. {prod.totalGastado.toFixed(0)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Nuevos */}
-            <div className="bg-purple-50 p-4 rounded-lg">
-              <div className="flex items-center gap-2 mb-3">
-                <Icon icon="mdi:account-plus-outline" className="text-xl text-purple-600" />
-                <h4 className="font-semibold text-purple-800">Nuevos</h4>
-              </div>
-              <div className="space-y-2">
-                {data.topProductosPorSegmento.nuevo.slice(0, 5).map((prod, idx) => (
-                  <div key={idx} className="flex justify-between items-center text-sm">
-                    <span className="text-gray-700">{prod.producto.substring(0, 15)}...</span>
-                    <span className="font-semibold text-purple-700">
-                      Bs. {prod.totalGastado.toFixed(0)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </CardBody>
-      </Card>
-
-      {/* Estrategias de fidelización */}
-      <Card className="shadow-md bg-blue-50">
-        <CardBody>
-          <h3 className="text-lg font-bold mb-3 text-blue-900 flex items-center gap-2">
-            <Icon icon="mdi:lightbulb-on-outline" className="text-2xl text-blue-600" />
-            Estrategias de Fidelización
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-white p-4 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Icon icon="mdi:star-circle" className="text-xl text-yellow-600" />
-                <p className="text-sm font-semibold text-gray-700">Para VIPs</p>
-              </div>
-              <p className="text-xs text-gray-600">
-                Programa de puntos exclusivo, descuentos especiales y atención prioritaria
-              </p>
-            </div>
-            <div className="bg-white p-4 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Icon icon="mdi:account-multiple" className="text-xl text-green-600" />
-                <p className="text-sm font-semibold text-gray-700">Para Frecuentes</p>
-              </div>
-              <p className="text-xs text-gray-600">
-                Ofertas semanales en sus productos favoritos y combos especiales
-              </p>
-            </div>
-            <div className="bg-white p-4 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Icon icon="mdi:account-clock-outline" className="text-xl text-blue-600" />
-                <p className="text-sm font-semibold text-gray-700">Para Ocasionales</p>
-              </div>
-              <p className="text-xs text-gray-600">
-                Promociones para incentivar visitas más frecuentes y recordatorios
-              </p>
-            </div>
-            <div className="bg-white p-4 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Icon icon="mdi:account-plus-outline" className="text-xl text-purple-600" />
-                <p className="text-sm font-semibold text-gray-700">Para Nuevos</p>
-              </div>
-              <p className="text-xs text-gray-600">
-                Descuento de bienvenida y cupones para segunda compra
-              </p>
-            </div>
-          </div>
-        </CardBody>
-      </Card>
-    </div>
-  )
+    </ProtectedRoute>
+  );
 }

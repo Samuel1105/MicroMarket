@@ -16,9 +16,9 @@ export default function CardMobileUnits({
                     <CardBody className='p-4'>
                         <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-3 flex-1">
-                                {/* <div className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-100">
+                                {/* <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary-100">
                                     <Icon
-                                        className="text-blue-600"
+                                        className="text-primary-600"
                                         height="20"
                                         icon="material-symbols:straighten"
                                         width="20"
@@ -42,7 +42,7 @@ export default function CardMobileUnits({
                                 </div>
                             </div>
                             <Link
-                                className="p-2 rounded-full hover:bg-blue-50 transition-colors flex-shrink-0"
+                                className="p-2 rounded-full hover:bg-primary-50 transition-colors flex-shrink-0"
                                 href={`/Dashboard/Config/Unit/${item.id}/Edit`}
                             >
                                 <Icon

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import BaseChart from './BaseChart'
+import type { EChartsOption } from 'echarts'
 import { getTop10ProductosVendidos } from '@/actions/dashboard/dashboard-action'
 
 interface ProductoVendido {
@@ -35,7 +36,7 @@ export default function TopProductosChart() {
     )
   }
 
-  const option: echarts.EChartsOption = {
+  const option: EChartsOption = {
     title: {
       text: 'Top 10 Productos Más Vendidos',
       left: 'left',

@@ -43,10 +43,10 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
     icon: <Icon icon="lucide:shopping-cart" width="24" height="24" />,
     submenu: true,
     subMenuItems: [
-      { title: 'Nueva Venta', path: '/Dashboard/Sales/New', roles: [1, 2] },
-      { title: 'Historial', path: '/Dashboard/Sales/History', roles: [1, 2] },
+      { title: 'Punto de Venta', path: '/Dashboard/Sales/New', roles: [1, 2] },
+      { title: 'Historial de Ventas', path: '/Dashboard/Sales/History', roles: [1, 2, 3] },
     ],
-    roles: [1, 2], // Solo admin y cajero
+    roles: [1, 2, 3], // Admin, cajero y almacen (almacen solo ve el historial)
   },
   {
     title: "Compras",
@@ -55,19 +55,43 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
     submenu: true,
     subMenuItems: [
       {
-        title: "Historial",
+        title: "Historial de Compras",
         path: "/Dashboard/Purchase/List",
+        roles: [1, 3, 5],
+      },
+      {
+        title: "Solicitudes de Compra",
+        path: "/Dashboard/Purchase/Requests",
         roles: [1, 5],
       },
       {
-        title: "Almacen",
+        title: "Productos en Estante",
+        path: "/Dashboard/Purchase/Shelf",
+        roles: [1, 3, 5],
+      },
+      {
+        title: "Extraer del Almacén",
         path: "/Dashboard/Purchase/Stock",
-        roles: [1, 5],
+        roles: [1, 3, 5],
       },
     ],
-    roles: [1, 5], // Solo admin y compras
+    roles: [1, 3, 5], // Admin, compras y almacen (almacen solo ve el historial)
   },
-  
+  {
+    title: "Inventario",
+    path: "/Dashboard/Inventory",
+    icon: <Icon height="24" icon="lucide:boxes" width="24" />,
+    submenu: true,
+    subMenuItems: [
+      {
+        title: "Movimientos",
+        path: "/Dashboard/Inventory/Movements",
+        roles: [1, 3, 5],
+      },
+    ],
+    roles: [1, 3, 5],
+  },
+
   {
     title: "Contactos",
     path: "/Contact/List",
@@ -104,11 +128,11 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
       { title: 'Evolución de ventas', path: '/Dashboard/Reports/EvolucionVentas', roles: [1, 2] },
       { title: 'Analisis de clientes', path: '/Dashboard/Reports/AnalisisClientes', roles: [1, 2] },
       { title: 'Ventas por producto', path: '/Dashboard/Reports/VentasPorProducto', roles: [1, 2] },
-      { title: 'Revisar', path: '/dashboard/reportes/empleados', roles: [1, 2] },
-      { title: 'Movimiento de almacén', path: '/Dashboard/Reports/MovimientoAlmacen', roles: [1, 2] },
+      { title: 'Almacén de productos', path: '/Dashboard/Reports/AlmacenProductos', roles: [1, 2] },
+      { title: 'Movimiento de almacén', path: '/Dashboard/Reports/MovimientoAlmacen', roles: [1, 2, 3] },
       { title: 'Ventas por vendedor', path: '/Dashboard/Reports/VentasPorVendedor', roles: [1, 2] },
     ],
-    roles: [1, 4], // Solo admin y reportes
+    roles: [1, 3, 4], // Admin, reportes y almacen (almacen solo ve movimiento de almacén)
   },
   {
     title: "Configuración",

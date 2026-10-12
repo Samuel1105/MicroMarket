@@ -1,244 +1,254 @@
-"use server"
+"use server";
 
-import { prisma } from "@/src/lib/prisma"
+import { prisma } from "@/src/lib/prisma";
+import { getCostoPromedioBase } from "@/src/lib/report-cost";
+import { getBoliviaTime } from "@/src/utils/date";
+import { addDays, diaBD, diasEnRango, rangoAnterior, rangoReporte } from "@/src/utils/report-dates";
 
-type WarehouseMovementParams = {
-  startDate?: string
-  endDate?: string
-  tipoMovimiento?: number // 1=Ingreso, 2=Salida, 3=Ajuste
+type Params = { startDate: string; endDate: string };
+
+/** Un lote que lleva más de estos días en bodega sin pasar al estante se marca como "esperando" */
+const DIAS_ESPERA = 15;
+
+export type ResumenMov = {
+  entradas: number; // Bs. al costo
+  traslados: number; // Bs. al costo
+  nEntradas: number; // lotes que ingresaron
+  nTraslados: number; // traslados registrados
+};
+
+export type ResponsableMov = {
+  id: number;
+  nombre: string;
+  entradas: number;
+  traslados: number;
+  valorEntradas: number;
+  valorTraslados: number;
+};
+
+export type LoteEsperando = {
+  producto: string;
+  lote: string;
+  ingreso: string; // YYYY-MM-DD
+  dias: number;
+  unidadesEnBodega: number;
+  unidadBase: string;
+  valor: number;
+  vence: string | null;
+};
+
+export type DescuadreProducto = {
+  producto: string;
+  unidadBase: string;
+  esperado: number; // lo que debería haber en el estante según los movimientos
+  real: number; // lo que dice el stock de venta
+  diferencia: number;
+};
+
+export type MovimientoAlmacenData = {
+  rango: { start: string; end: string; dias: number };
+  actual: ResumenMov;
+  anterior: ResumenMov;
+  /** Días promedio entre que el lote entra y su primer traslado (solo traslados del período) */
+  diasHastaEstante: number | null;
+  diasHastaEstantePrev: number | null;
+  porDia: Array<{ fecha: string; entradas: number; traslados: number }>;
+  responsables: ResponsableMov[];
+  esperando: LoteEsperando[];
+  descuadre: DescuadreProducto[];
+  productosRevisados: number;
+};
+
+async function resumen(start: Date, end: Date, costos: Map<number, { costoUnidad: number }>) {
+  const movs = await prisma.movimientoAlmacen.findMany({
+    where: { tipoMovimiento: { in: [1, 2] }, fechaRegistro: { gte: start, lte: end } },
+    select: {
+      tipoMovimiento: true,
+      productoID: true,
+      loteID: true,
+      cantidadUnidadesBase: true,
+      fechaRegistro: true,
+      usuarioIdRegistro: true,
+      Lote: { select: { fechaRegistro: true } },
+    },
+  });
+
+  const r: ResumenMov = { entradas: 0, traslados: 0, nEntradas: 0, nTraslados: 0 };
+  let sumaDias = 0;
+  let nDias = 0;
+
+  for (const m of movs) {
+    const valor = Number(m.cantidadUnidadesBase) * (costos.get(m.productoID)?.costoUnidad ?? 0);
+
+    if (m.tipoMovimiento === 1) {
+      r.entradas += valor;
+      r.nEntradas += 1;
+    } else {
+      r.traslados += valor;
+      r.nTraslados += 1;
+
+      if (m.fechaRegistro && m.Lote?.fechaRegistro) {
+        sumaDias += Math.max((m.fechaRegistro.getTime() - m.Lote.fechaRegistro.getTime()) / 86400000, 0);
+        nDias += 1;
+      }
+    }
+  }
+
+  return { r, movs, dias: nDias ? sumaDias / nDias : null };
 }
 
-export async function getWarehouseMovements(params: WarehouseMovementParams = {}) {
+export async function getWarehouseMovements({
+  startDate,
+  endDate,
+}: Params): Promise<{ success: boolean; data?: MovimientoAlmacenData; error?: string }> {
   try {
-    const startDate = params.startDate ? new Date(params.startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    const endDate = params.endDate ? new Date(params.endDate) : new Date()
+    const actual = rangoReporte(startDate, endDate);
+    const prev = rangoAnterior(startDate, endDate);
+    const previo = rangoReporte(prev.start, prev.end);
+    const hoy = getBoliviaTime().toISOString().slice(0, 10);
 
-    // Construir filtros
-    const whereClause: any = {
-      fechaRegistro: {
-        gte: startDate,
-        lte: endDate
-      }
-    }
+    const costos = await getCostoPromedioBase(new Date(`${hoy}T23:59:59.999Z`));
 
-    if (params.tipoMovimiento) {
-      whereClause.tipoMovimiento = params.tipoMovimiento
-    }
-
-    // Obtener movimientos
-    const movimientos = await prisma.movimientoAlmacen.findMany({
-      where: whereClause,
-      include: {
-        Producto: {
-          include: {
-            Categoria: true
-          }
+    const [act, ant, personas, lotes, stockActual] = await Promise.all([
+      resumen(actual.startDate, actual.endDate, costos),
+      resumen(previo.startDate, previo.endDate, costos),
+      prisma.persona.findMany({ select: { id: true, primerNombre: true, apellidoPaterno: true } }),
+      // Todos los lotes: sirven para "lotes esperando" y para el cuadre
+      prisma.lote.findMany({
+        where: { estado: 1 },
+        select: {
+          numeroLote: true,
+          fechaRegistro: true,
+          fechaVencimiento: true,
+          cantidadInicialUnidadesBase: true,
+          productoID: true,
+          Producto: { select: { nombre: true, UnidadMedida: { select: { abreviatura: true, nombre: true } } } },
+          MovimientoAlmacen: { where: { tipoMovimiento: 2 }, select: { cantidadUnidadesBase: true } },
+          StockVenta: {
+            select: { DetalleVenta: { where: { Venta: { estado: 1 } }, select: { cantidadUnidadesBase: true } } },
+          },
         },
-        UnidadMedida: true,
-        Lote: true
-      },
-      orderBy: {
-        fechaRegistro: 'desc'
-      }
-    })
+      }),
+      prisma.stockVenta.findMany({
+        where: { estado: 1 },
+        select: { productoID: true, cantidadUnidadesBase: true },
+      }),
+    ]);
 
-    // Análisis por tipo de movimiento
-    const ingresos = movimientos.filter(m => m.tipoMovimiento === 1)
-    const salidas = movimientos.filter(m => m.tipoMovimiento === 2)
-    const ajustes = movimientos.filter(m => m.tipoMovimiento === 3)
+    // ── Por día ──
+    const dias = diasEnRango(startDate, endDate);
+    const porDiaMap = new Map<string, { entradas: number; traslados: number }>();
 
-    // Totales por tipo
-    const totalIngresosUnidades = ingresos.reduce((sum, m) => sum + m.cantidadUnidadesBase.toNumber(), 0)
-    const totalSalidasUnidades = salidas.reduce((sum, m) => sum + m.cantidadUnidadesBase.toNumber(), 0)
-    const totalAjustesUnidades = ajustes.reduce((sum, m) => sum + Math.abs(m.cantidadUnidadesBase.toNumber()), 0)
+    for (let i = 0; i < dias; i++) porDiaMap.set(addDays(startDate, i), { entradas: 0, traslados: 0 });
 
-    // Movimientos por día
-    const movimientosPorDia: Record<string, {
-      fecha: string
-      ingresos: number
-      salidas: number
-      ajustes: number
-    }> = {}
+    // ── Por responsable ──
+    const nombres = new Map(personas.map((p) => [p.id, `${p.primerNombre} ${p.apellidoPaterno}`]));
+    const resp = new Map<number, ResponsableMov>();
 
-    movimientos.forEach(m => {
-      if (!m.fechaRegistro) return
-      
-      const fecha = m.fechaRegistro.toISOString().split('T')[0]
-      
-      if (!movimientosPorDia[fecha]) {
-        movimientosPorDia[fecha] = {
-          fecha,
-          ingresos: 0,
-          salidas: 0,
-          ajustes: 0
-        }
-      }
+    for (const m of act.movs) {
+      if (!m.fechaRegistro) continue;
+      const valor = Number(m.cantidadUnidadesBase) * (costos.get(m.productoID)?.costoUnidad ?? 0);
+      const dia = porDiaMap.get(diaBD(m.fechaRegistro));
+      const r =
+        resp.get(m.usuarioIdRegistro) ??
+        {
+          id: m.usuarioIdRegistro,
+          nombre: nombres.get(m.usuarioIdRegistro) ?? `Usuario ${m.usuarioIdRegistro}`,
+          entradas: 0,
+          traslados: 0,
+          valorEntradas: 0,
+          valorTraslados: 0,
+        };
 
-      const unidades = m.cantidadUnidadesBase.toNumber()
-      
       if (m.tipoMovimiento === 1) {
-        movimientosPorDia[fecha].ingresos += unidades
-      } else if (m.tipoMovimiento === 2) {
-        movimientosPorDia[fecha].salidas += unidades
-      } else if (m.tipoMovimiento === 3) {
-        movimientosPorDia[fecha].ajustes += Math.abs(unidades)
-      }
-    })
-
-    const movimientosDiarios = Object.values(movimientosPorDia)
-      .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime())
-
-    // Movimientos por producto
-    const productoMovimientos: Record<string, {
-      producto: string
-      categoria: string
-      ingresos: number
-      salidas: number
-      ajustes: number
-      neto: number
-    }> = {}
-
-    movimientos.forEach(m => {
-      const producto = m.Producto.nombre
-      
-      if (!productoMovimientos[producto]) {
-        productoMovimientos[producto] = {
-          producto,
-          categoria: m.Producto.Categoria.nombre,
-          ingresos: 0,
-          salidas: 0,
-          ajustes: 0,
-          neto: 0
-        }
+        if (dia) dia.entradas += valor;
+        r.entradas += 1;
+        r.valorEntradas += valor;
+      } else {
+        if (dia) dia.traslados += valor;
+        r.traslados += 1;
+        r.valorTraslados += valor;
       }
 
-      const unidades = m.cantidadUnidadesBase.toNumber()
-      
-      if (m.tipoMovimiento === 1) {
-        productoMovimientos[producto].ingresos += unidades
-        productoMovimientos[producto].neto += unidades
-      } else if (m.tipoMovimiento === 2) {
-        productoMovimientos[producto].salidas += unidades
-        productoMovimientos[producto].neto -= unidades
-      } else if (m.tipoMovimiento === 3) {
-        productoMovimientos[producto].ajustes += unidades
-        productoMovimientos[producto].neto += unidades
+      resp.set(m.usuarioIdRegistro, r);
+    }
+
+    // ── Lotes esperando en bodega + cuadre ──
+    const esperando: LoteEsperando[] = [];
+    const teoricoEstante = new Map<number, { esperado: number; nombre: string; unidad: string }>();
+
+    for (const l of lotes) {
+      const inicial = Number(l.cantidadInicialUnidadesBase);
+      const extraido = l.MovimientoAlmacen.reduce((s, m) => s + Number(m.cantidadUnidadesBase), 0);
+      const vendido = l.StockVenta.reduce(
+        (s, sv) => s + sv.DetalleVenta.reduce((t, d) => t + Number(d.cantidadUnidadesBase), 0),
+        0,
+      );
+      const enBodega = inicial - extraido;
+      const unidad = l.Producto.UnidadMedida.abreviatura || l.Producto.UnidadMedida.nombre;
+      const t = teoricoEstante.get(l.productoID) ?? { esperado: 0, nombre: l.Producto.nombre, unidad };
+
+      t.esperado += extraido - vendido;
+      teoricoEstante.set(l.productoID, t);
+
+      if (!l.fechaRegistro || enBodega <= 0.001) continue;
+      // Un lote ya vencido no "espera": es merma, se ve en Almacén y Estado financiero
+      if (l.fechaVencimiento && diaBD(l.fechaVencimiento) < hoy) continue;
+
+      const ingreso = diaBD(l.fechaRegistro);
+      const diasEnBodega = Math.round(
+        (new Date(`${hoy}T00:00:00Z`).getTime() - new Date(`${ingreso}T00:00:00Z`).getTime()) / 86400000,
+      );
+
+      if (diasEnBodega >= DIAS_ESPERA) {
+        esperando.push({
+          producto: l.Producto.nombre,
+          lote: l.numeroLote,
+          ingreso,
+          dias: diasEnBodega,
+          unidadesEnBodega: enBodega,
+          unidadBase: unidad,
+          valor: enBodega * (costos.get(l.productoID)?.costoUnidad ?? 0),
+          vence: l.fechaVencimiento ? diaBD(l.fechaVencimiento) : null,
+        });
       }
-    })
+    }
 
-    const productoMovimientosArray = Object.values(productoMovimientos)
-      .sort((a, b) => Math.abs(b.neto) - Math.abs(a.neto))
+    const realEstante = new Map<number, number>();
 
-    // Productos con mayor movimiento
-    const topMovimientos = productoMovimientosArray.slice(0, 15)
+    for (const s of stockActual) realEstante.set(s.productoID, (realEstante.get(s.productoID) ?? 0) + Number(s.cantidadUnidadesBase));
 
-    // Detectar posibles irregularidades
-    const irregularidades: Array<{
-      tipo: 'ajuste_alto' | 'salida_sin_referencia' | 'entrada_sin_lote'
-      producto: string
-      cantidad: number
-      fecha: string
-      observaciones: string
-    }> = []
+    const descuadre: DescuadreProducto[] = [];
 
-    movimientos.forEach(m => {
-      // Ajustes muy altos (más de 50 unidades)
-      if (m.tipoMovimiento === 3 && Math.abs(m.cantidadUnidadesBase.toNumber()) > 50) {
-        irregularidades.push({
-          tipo: 'ajuste_alto',
-          producto: m.Producto.nombre,
-          cantidad: m.cantidadUnidadesBase.toNumber(),
-          fecha: m.fechaRegistro?.toISOString().split('T')[0] || '',
-          observaciones: m.observaciones || 'Sin observaciones'
-        })
+    teoricoEstante.forEach((t, id) => {
+      const real = realEstante.get(id) ?? 0;
+      const dif = real - t.esperado;
+
+      if (Math.abs(dif) > 0.01) {
+        descuadre.push({ producto: t.nombre, unidadBase: t.unidad, esperado: t.esperado, real, diferencia: dif });
       }
-
-      // Salidas sin referencia
-      if (m.tipoMovimiento === 2 && !m.referenciaID) {
-        irregularidades.push({
-          tipo: 'salida_sin_referencia',
-          producto: m.Producto.nombre,
-          cantidad: m.cantidadUnidadesBase.toNumber(),
-          fecha: m.fechaRegistro?.toISOString().split('T')[0] || '',
-          observaciones: 'Salida sin referencia de venta'
-        })
-      }
-
-      // Entradas sin lote
-      if (m.tipoMovimiento === 1 && !m.loteID) {
-        irregularidades.push({
-          tipo: 'entrada_sin_lote',
-          producto: m.Producto.nombre,
-          cantidad: m.cantidadUnidadesBase.toNumber(),
-          fecha: m.fechaRegistro?.toISOString().split('T')[0] || '',
-          observaciones: 'Entrada sin número de lote'
-        })
-      }
-    })
-
-    // Mapear movimientos con información completa
-    const movimientosDetallados = movimientos.map(m => ({
-      id: m.id,
-      fecha: m.fechaRegistro?.toISOString().split('T')[0] || '',
-      hora: m.fechaRegistro?.toTimeString().split(' ')[0] || '',
-      tipoMovimiento: m.tipoMovimiento,
-      tipoMovimientoLabel: m.tipoMovimiento === 1 ? 'Ingreso' : m.tipoMovimiento === 2 ? 'Salida' : 'Ajuste',
-      producto: m.Producto.nombre,
-      categoria: m.Producto.Categoria.nombre,
-      cantidad: m.cantidad.toNumber(),
-      cantidadUnidadesBase: m.cantidadUnidadesBase.toNumber(),
-      unidadMedida: m.UnidadMedida.nombre,
-      lote: m.Lote?.numeroLote || null,
-      referenciaID: m.referenciaID,
-      tipoReferencia: m.tipoReferencia,
-      observaciones: m.observaciones,
-      usuarioID: m.usuarioIdRegistro
-    }))
-
-    // Estadísticas generales
-    const saldoNeto = totalIngresosUnidades - totalSalidasUnidades + ajustes.reduce((sum, m) => sum + m.cantidadUnidadesBase.toNumber(), 0)
-    
-    const promedioIngresosDiario = movimientosDiarios.length > 0
-      ? movimientosDiarios.reduce((sum, d) => sum + d.ingresos, 0) / movimientosDiarios.length
-      : 0
-
-    const promedioSalidasDiario = movimientosDiarios.length > 0
-      ? movimientosDiarios.reduce((sum, d) => sum + d.salidas, 0) / movimientosDiarios.length
-      : 0
+    });
 
     return {
       success: true,
       data: {
-        movimientos: movimientosDetallados,
-        movimientosDiarios,
-        productoMovimientos: productoMovimientosArray,
-        topMovimientos,
-        irregularidades,
-        estadisticas: {
-          totalMovimientos: movimientos.length,
-          totalIngresos: ingresos.length,
-          totalSalidas: salidas.length,
-          totalAjustes: ajustes.length,
-          totalIngresosUnidades,
-          totalSalidasUnidades,
-          totalAjustesUnidades,
-          saldoNeto,
-          promedioIngresosDiario,
-          promedioSalidasDiario,
-          irregularidadesDetectadas: irregularidades.length
-        },
-        periodo: {
-          inicio: startDate.toISOString().split('T')[0],
-          fin: endDate.toISOString().split('T')[0]
-        }
-      }
-    }
-
+        rango: { start: startDate, end: endDate, dias },
+        actual: act.r,
+        anterior: ant.r,
+        diasHastaEstante: act.dias,
+        diasHastaEstantePrev: ant.dias,
+        porDia: Array.from(porDiaMap.entries()).map(([fecha, v]) => ({ fecha, ...v })),
+        responsables: Array.from(resp.values()).sort(
+          (a, b) => b.valorEntradas + b.valorTraslados - (a.valorEntradas + a.valorTraslados),
+        ),
+        esperando: esperando.sort((a, b) => b.dias - a.dias),
+        descuadre: descuadre.sort((a, b) => Math.abs(b.diferencia) - Math.abs(a.diferencia)),
+        productosRevisados: teoricoEstante.size,
+      },
+    };
   } catch (error) {
-    console.error("Error en getWarehouseMovements:", error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Error desconocido al analizar movimientos de almacén"
-    }
+    console.error("Error en getWarehouseMovements:", error);
+
+    return { success: false, error: "Error al calcular los movimientos de almacén" };
   }
 }

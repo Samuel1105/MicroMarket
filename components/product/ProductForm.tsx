@@ -17,9 +17,9 @@ export default function ProductForm({ producto }: ProductFormProps) {
       {/* Información básica del producto */}
       <div className="space-y-6 w-full">
         <div className="flex items-center gap-3 pb-3 border-b border-gray-200">
-          <div className="p-2 bg-blue-100 rounded-lg">
+          <div className="p-2 bg-primary-100 rounded-lg">
             <svg
-              className="w-5 h-5 text-blue-600"
+              className="w-5 h-5 text-primary-600"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"

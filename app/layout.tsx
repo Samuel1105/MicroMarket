@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "@/styles/globals.css";
 import { ToastContainer } from "react-toastify";
+import { HeroUIProvider } from "@heroui/react";
 
 import { AuthProvider } from "@/app/context/AuthContext";
 
@@ -29,15 +30,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {
-          <AuthProvider>
-            {children}
-            <ToastContainer pauseOnFocusLoss={false} />
-          </AuthProvider>
+          <HeroUIProvider>
+            <AuthProvider>
+              {children}
+              <ToastContainer pauseOnFocusLoss={false} />
+            </AuthProvider>
+          </HeroUIProvider>
         }
       </body>
     </html>

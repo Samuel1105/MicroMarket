@@ -87,6 +87,7 @@ export const productoSchema = z.object({
   id: z.number().optional(),
   nombre: z.string().min(1, "El nombre del producto es requerido"),
   descripcion: z.string().optional().nullable(),
+  stockMinimo: z.number().min(0).optional(),
   categoriaID: z.number().min(1, "Debe seleccionar una categoría"),
   proveedorID: z.number().min(1, "Debe seleccionar un proveedor"),
   unidadBaseID: z.number().min(1, "Debe seleccionar una unidad base"),
@@ -102,6 +103,7 @@ export const productoSchema = z.object({
 export const productoCreateSchema = productoSchema.pick({
   nombre: true,
   descripcion: true,
+  stockMinimo: true,
   categoriaID: true,
   proveedorID: true,
   unidadBaseID: true,
@@ -130,6 +132,7 @@ export const conversionFormSchema = z.object({
 export const productoCompleteFormSchema = z.object({
   nombre: z.string().min(1, "El nombre del producto es requerido"),
   descripcion: z.string().optional(),
+  stockMinimo: z.number().min(0, "El stock mínimo no puede ser negativo").optional(),
   categoriaID: z.string().min(1, "Debe seleccionar una categoría"),
   proveedorID: z.string().min(1, "Debe seleccionar un proveedor"),
   //requiereNumeroSerie: z.boolean().default(false).optional(),
@@ -176,6 +179,7 @@ export type ProductoApiData = {
   producto: {
     nombre: string;
     descripcion?: string;
+    stockMinimo?: number;
     categoriaID: number;
     proveedorID: number;
     unidadBaseID: number;
@@ -226,6 +230,7 @@ export const productoCompleteEditFormSchema = z.object({
   id: z.number().optional(), // Incluir ID para edición
   nombre: z.string().min(1, "El nombre del producto es requerido"),
   descripcion: z.string().optional(),
+  stockMinimo: z.number().min(0, "El stock mínimo no puede ser negativo").optional(),
   categoriaID: z.string().min(1, "Debe seleccionar una categoría"),
   proveedorID: z.string().min(1, "Debe seleccionar un proveedor"),
   //requiereNumeroSerie: z.boolean().default(false).optional(),
@@ -253,6 +258,7 @@ export type ProductoCompleto = {
   id: number;
   nombre: string;
   descripcion?: string | null;
+  stockMinimo?: number;
   categoriaID: number;
   proveedorID: number;
   unidadBaseID: number;
@@ -291,6 +297,7 @@ export type ProductoUpdateApiData = {
     id: number;
     nombre: string;
     descripcion?: string;
+    stockMinimo?: number;
     categoriaID: number;
     proveedorID: number;
     unidadBaseID: number;

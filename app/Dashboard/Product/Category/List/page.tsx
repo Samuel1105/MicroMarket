@@ -1,13 +1,14 @@
 "use client";
 import React, { useCallback, useEffect, useState, useMemo } from "react";
-import { Button, Pagination } from "@heroui/react";
-import { Icon } from "@iconify/react/dist/iconify.js";
+import { Card, CardBody, Pagination, Select, SelectItem } from "@heroui/react";
+import { Icon } from "@iconify/react";
 import { useRouter } from "next/navigation";
 
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import Heading from "@/components/ui/Heading";
+import Breadcrumbs from "@/components/ui/Breadcrumbs";
+import ListHeaderCard from "@/components/ui/ListHeaderCard";
 import { ListCategory } from "@/actions/products/list-categoty-action";
-import { CategoryList } from "@/src/schema/SchemaProduts"; // Asegúrate que esta es la ruta correcta
+import { CategoryList } from "@/src/schema/SchemaProduts";
 import Loading from "@/components/ui/Loading";
 import CategoryCard from "@/components/product/CategoryCard";
 
@@ -15,19 +16,9 @@ export default function ProductCategoryListView() {
   const [categories, setCategories] = useState<CategoryList>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [conProductos, setConProductos] = useState("todas");
   const router = useRouter();
-
-  // --- Lógica de Paginación ---
-  const [page, setPage] = useState(1);
-  const rowsPerPage = 12; // Número de tarjetas por página
-  const pages = Math.ceil(categories.length / rowsPerPage);
-
-  const items = useMemo(() => {
-    const start = (page - 1) * rowsPerPage;
-    const end = start + rowsPerPage;
-
-    return categories.slice(start, end);
-  }, [page, categories, rowsPerPage]);
 
   const fetchCategory = useCallback(async () => {
     try {
@@ -56,6 +47,32 @@ export default function ProductCategoryListView() {
     fetchCategory();
   }, [fetchCategory]);
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+
+    return categories.filter((c) => {
+      if (q && !c.nombre.toLowerCase().includes(q)) return false;
+      if (conProductos === "con" && c.cantidadProductos === 0) return false;
+      if (conProductos === "sin" && c.cantidadProductos > 0) return false;
+
+      return true;
+    });
+  }, [categories, search, conProductos]);
+
+  const [page, setPage] = useState(1);
+  const rowsPerPage = 12;
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, conProductos]);
+
+  const pages = Math.ceil(filtered.length / rowsPerPage);
+  const items = useMemo(() => {
+    const start = (page - 1) * rowsPerPage;
+
+    return filtered.slice(start, start + rowsPerPage);
+  }, [page, filtered]);
+
   if (loading) return <Loading>Cargando categorías...</Loading>;
   if (error)
     return (
@@ -66,41 +83,68 @@ export default function ProductCategoryListView() {
 
   return (
     <ProtectedRoute allowedRoles={[1, 3]}>
-      <Heading>Categorías</Heading>
-      <div className="p-4 md:p-8">
-        <div className="flex justify-end items-center mb-6">
-          <Button
-            color="primary"
-            onPress={() => router.push("/Dashboard/Product/Category/New")}
-          >
-            <Icon
-              className="md:mr-2"
-              height="20"
-              icon="heroicons:plus"
-              width="20"
-            />
-            <span className="hidden md:inline">Registrar Categoría</span>
-          </Button>
-        </div>
+      <div className="p-4 md:p-8 space-y-5">
+        <Breadcrumbs items={[{ label: "Productos" }, { label: "Categorías" }]} />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {items && items.length > 0 ? (
-            <CategoryCard
-              categories={items}
-              onDeleteSuccess={handleDeleteSuccess}
-            />
-          ) : (
-            <div className="col-span-full text-center py-10">
-              <h1 className="text-xl text-default-500">
-                No hay categorías disponibles
-              </h1>
-            </div>
-          )}
-        </div>
+        <ListHeaderCard
+          actionLabel="Registrar Categoría"
+          activeFilters={conProductos !== "todas" ? 1 : 0}
+          description="Organiza tus productos por categoría"
+          filters={
+            <Select
+              disallowEmptySelection
+              label="Productos"
+              selectedKeys={[conProductos]}
+              onSelectionChange={(keys) =>
+                setConProductos((Array.from(keys)[0] as string) || "todas")
+              }
+            >
+              <SelectItem key="todas">Todas</SelectItem>
+              <SelectItem key="con">Con productos</SelectItem>
+              <SelectItem key="sin">Sin productos</SelectItem>
+            </Select>
+          }
+          search={search}
+          searchPlaceholder="Buscar categoría..."
+          title="Categorías"
+          onAction={() => router.push("/Dashboard/Product/Category/New")}
+          onClearFilters={() => {
+            setSearch("");
+            setConProductos("todas");
+          }}
+          onSearchChange={setSearch}
+        />
 
-        {/* Componente de paginación */}
+        <p className="text-sm text-gray-500 px-1">
+          {filtered.length} {filtered.length === 1 ? "categoría" : "categorías"}
+          {filtered.length !== categories.length && ` de ${categories.length}`}
+        </p>
+
+        {items.length > 0 ? (
+          <div className="space-y-3">
+            <CategoryCard categories={items} onDeleteSuccess={handleDeleteSuccess} />
+          </div>
+        ) : (
+          <Card className="border border-default-200 shadow-sm">
+            <CardBody className="p-10 text-center">
+              <Icon
+                className="mx-auto text-gray-300 mb-3"
+                height="56"
+                icon="heroicons:tag"
+                width="56"
+              />
+              <h3 className="text-lg font-semibold text-gray-700 mb-1">
+                No se encontraron categorías
+              </h3>
+              <p className="text-gray-500 text-sm">
+                Prueba con otra búsqueda o limpia los filtros.
+              </p>
+            </CardBody>
+          </Card>
+        )}
+
         {pages > 1 && (
-          <div className="flex justify-center mt-8">
+          <div className="flex justify-center pt-2">
             <Pagination
               isCompact
               showControls

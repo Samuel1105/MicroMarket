@@ -1,13 +1,17 @@
 "use client"
-import React, { useState, useEffect } from 'react';
-import { 
-  Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, 
-  Button, Input, Chip, Spinner, Card, CardBody, useDisclosure
-} from '@heroui/react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Button, Card, CardBody, Chip, Pagination, Select, SelectItem, Spinner, useDisclosure } from '@heroui/react';
 import { Icon } from '@iconify/react';
-import { getPurchaseHistory } from '@/actions/purchase/list-purchase-action';
-import PurchaseDetailModal from './PurchaseDetailModal';
 import { useRouter } from 'next/navigation';
+
+import { getPurchaseHistory } from '@/actions/purchase/list-purchase-action';
+import Breadcrumbs from '@/components/ui/Breadcrumbs';
+import ListHeaderCard from '@/components/ui/ListHeaderCard';
+import StatCard from '@/components/ui/StatCard';
+import DateRangeFilter from '@/components/ui/DateRangeFilter';
+import { formatShortDate, inDateRange, inPeriod, Period, PERIOD_OPTIONS } from '@/src/utils/period';
+
+import PurchaseDetailModal from './PurchaseDetailModal';
 
 interface PurchaseDetail {
   id: number;
@@ -41,299 +45,235 @@ interface Purchase {
   detalles: PurchaseDetail[];
 }
 
+const ROWS_PER_PAGE = 10;
+
 export default function PurchaseHistoryView() {
-  const [purchases, setPurchases] = useState<Purchase[]>([]);
-  const [filteredPurchases, setFilteredPurchases] = useState<Purchase[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
   const { isOpen, onOpen, onClose } = useDisclosure();
 
-  const router = useRouter();
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [search, setSearch] = useState('');
+  const [proveedor, setProveedor] = useState('todos');
+  const [periodo, setPeriodo] = useState<Period>('todo');
+  const [desde, setDesde] = useState('');
+  const [hasta, setHasta] = useState('');
+  const [rangeKey, setRangeKey] = useState(0);
+  const hayRango = Boolean(desde || hasta);
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
-    loadPurchases();
+    (async () => {
+      try {
+        const result = await getPurchaseHistory();
+
+        if (result.success && result.data) setPurchases(result.data);
+      } catch (error) {
+        console.error('Error al cargar compras:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
   }, []);
 
   useEffect(() => {
-    filterPurchases();
-  }, [searchTerm, purchases]);
+    setPage(1);
+  }, [search, proveedor, periodo, desde, hasta]);
 
-  const loadPurchases = async () => {
-    setIsLoading(true);
-    try {
-      const result = await getPurchaseHistory();
-      if (result.success && result.data) {
-        setPurchases(result.data);
-        setFilteredPurchases(result.data);
-      }
-    } catch (error) {
-      console.error('Error al cargar compras:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const proveedores = useMemo(
+    () => Array.from(new Set(purchases.map((p) => p.proveedor.nombre))).sort(),
+    [purchases],
+  );
 
-  const filterPurchases = () => {
-    if (!searchTerm.trim()) {
-      setFilteredPurchases(purchases);
-      return;
-    }
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
 
-    const filtered = purchases.filter(purchase =>
-      purchase.numeroCompra.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      purchase.proveedor.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      purchase.fecha.includes(searchTerm)
-    );
+    return purchases.filter((p) => {
+      if (
+        q &&
+        !p.numeroCompra.toLowerCase().includes(q) &&
+        !p.proveedor.nombre.toLowerCase().includes(q) &&
+        !p.detalles.some((d) => d.producto.toLowerCase().includes(q))
+      )
+        return false;
+      if (proveedor !== 'todos' && p.proveedor.nombre !== proveedor) return false;
+      if (hayRango ? !inDateRange(p.fecha, desde, hasta) : !inPeriod(p.fecha, periodo)) return false;
 
-    setFilteredPurchases(filtered);
-  };
+      return true;
+    });
+  }, [purchases, search, proveedor, periodo, desde, hasta, hayRango]);
+
+  const pages = Math.max(1, Math.ceil(filtered.length / ROWS_PER_PAGE));
+  const pageItems = filtered.slice((page - 1) * ROWS_PER_PAGE, page * ROWS_PER_PAGE);
+  const activeFilters = (proveedor !== 'todos' ? 1 : 0) + (hayRango ? 1 : periodo !== 'todo' ? 1 : 0);
+
+  const getTotalItems = (purchase: Purchase) =>
+    purchase.detalles.reduce((sum, detail) => sum + detail.cantidad, 0);
 
   const handleViewDetails = (purchase: Purchase) => {
     setSelectedPurchase(purchase);
     onOpen();
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('es-BO', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    });
-  };
-
-  const getTotalItems = (purchase: Purchase) => {
-    return purchase.detalles.reduce((sum, detail) => sum + detail.cantidad, 0);
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center min-h-[400px]">
-        <Spinner size="lg" label="Cargando historial de compras..." />
-      </div>
-    );
-  }
-
   return (
-    <div className="w-full space-y-6">
-      {/* Barra de búsqueda */}
-      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-        <div className="w-full  md:w-96">
-          <Input
-            placeholder="Buscar por número, proveedor o fecha..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            startContent={
-              <Icon icon="mdi:magnify" width="20" height="20" className="text-gray-400" />
-            }
-            isClearable
-            onClear={() => setSearchTerm('')}
-          />
-        </div>
-        
-        <div className='w-full md:w-auto flex justify-end'>
-          <Button
-            color='primary'
-            onPress={() => router.push("/Dashboard/Purchase/New")}
-          >
-            <Icon
-              className="md:mr-2"
-              height="20"
-              icon="heroicons:plus"
-              width="20"
-            />
-            <span className="hidden md:inline">Registrar Compra</span>
-          </Button>
-        </div>
-        
-      </div>
+    <div className="p-4 md:p-8 space-y-5">
+      <Breadcrumbs items={[{ label: 'Compras' }, { label: 'Historial' }]} />
 
-      {/* Resumen rápido */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardBody className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Total Compras</p>
-                <p className="text-2xl font-bold">{filteredPurchases.length}</p>
-              </div>
-              <Icon icon="mdi:cart" width="32" height="32" className="text-blue-500" />
-            </div>
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardBody className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Monto Total</p>
-                <p className="text-2xl font-bold text-green-600">
-                  Bs. {filteredPurchases.reduce((sum, p) => sum + p.total, 0).toFixed(2)}
-                </p>
-              </div>
-              <Icon icon="mdi:cash-multiple" width="32" height="32" className="text-green-500" />
-            </div>
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardBody className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Descuentos</p>
-                <p className="text-2xl font-bold text-red-600">
-                  Bs. {filteredPurchases.reduce((sum, p) => sum + p.descuento, 0).toFixed(2)}
-                </p>
-              </div>
-              <Icon icon="mdi:tag-percent" width="32" height="32" className="text-red-500" />
-            </div>
-          </CardBody>
-        </Card>
-      </div>
-
-      {/* Vista Mobile: Cards */}
-      <div className="md:hidden space-y-3">
-        {filteredPurchases.length === 0 ? (
-          <Card>
-            <CardBody className="p-6 text-center">
-              <Icon
-                icon="mdi:package-variant"
-                width="48"
-                height="48"
-                className="mx-auto text-gray-400 mb-2"
-              />
-              <p className="text-gray-600">No se encontraron compras</p>
-            </CardBody>
-          </Card>
-        ) : (
-          filteredPurchases.map((purchase) => (
-            <Card key={purchase.id} className="border">
-              <CardBody className="p-4">
-                <div className="space-y-3">
-                  {/* Encabezado */}
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-semibold">{purchase.numeroCompra}</p>
-                      <p className="text-xs text-gray-500">{formatDate(purchase.fecha)}</p>
-                    </div>
-                    <Chip color="success" size="sm" variant="flat">
-                      Bs. {purchase.total.toFixed(2)}
-                    </Chip>
-                  </div>
-
-                  {/* Información */}
-                  <div className="space-y-1 text-sm">
-                    <p><strong>Proveedor:</strong> {purchase.proveedor.nombre}</p>
-                    <p><strong>Productos:</strong> {purchase.detalles.length}</p>
-                    <p><strong>Items totales:</strong> {getTotalItems(purchase)}</p>
-                    {purchase.descuento > 0 && (
-                      <p className="text-red-600">
-                        <strong>Descuento:</strong> Bs. {purchase.descuento.toFixed(2)}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Botón ver detalles */}
-                  <Button
-                    size="sm"
-                    color="primary"
-                    variant="flat"
-                    fullWidth
-                    onPress={() => handleViewDetails(purchase)}
-                    startContent={<Icon icon="mdi:eye" width="18" height="18" />}
-                  >
-                    Ver Detalles
-                  </Button>
-                </div>
-              </CardBody>
-            </Card>
-          ))
-        )}
-      </div>
-
-      {/* Vista Desktop: Tabla */}
-      <div className="hidden md:block">
-        <div className="overflow-x-auto rounded-xl border bg-white">
-          <Table aria-label="Historial de compras">
-            <TableHeader>
-              <TableColumn>NÚMERO</TableColumn>
-              <TableColumn>FECHA</TableColumn>
-              <TableColumn>PROVEEDOR</TableColumn>
-              <TableColumn>PRODUCTOS</TableColumn>
-              <TableColumn>SUBTOTAL</TableColumn>
-              <TableColumn>DESCUENTO</TableColumn>
-              <TableColumn>TOTAL</TableColumn>
-              <TableColumn>ACCIONES</TableColumn>
-            </TableHeader>
-            <TableBody emptyContent="No se encontraron compras">
-              {filteredPurchases.map((purchase) => (
-                <TableRow key={purchase.id}>
-                  <TableCell className="font-medium">{purchase.numeroCompra}</TableCell>
-                  <TableCell>{formatDate(purchase.fecha)}</TableCell>
-                  <TableCell>{purchase.proveedor.nombre}</TableCell>
-                  <TableCell>
-                    <Chip size="sm" variant="flat">
-                      {purchase.detalles.length} producto(s)
-                    </Chip>
-                  </TableCell>
-                  <TableCell>Bs. {purchase.subtotal.toFixed(2)}</TableCell>
-                  <TableCell>
-                    {purchase.descuento > 0 ? (
-                      <span className="text-red-600">- Bs. {purchase.descuento.toFixed(2)}</span>
-                    ) : (
-                      <span className="text-gray-400">Bs. 0.00</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <span className="font-bold text-green-600">
-                      Bs. {purchase.total.toFixed(2)}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      size="sm"
-                      color="primary"
-                      variant="light"
-                      isIconOnly
-                      onPress={() => handleViewDetails(purchase)}
-                    >
-                      <Icon icon="mdi:eye" width="20" height="20" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
+      <ListHeaderCard
+        actionLabel="Registrar compra"
+        activeFilters={activeFilters}
+        description="Consulta lo que le compraste a tus proveedores"
+        filters={
+          <>
+            <Select
+              disallowEmptySelection
+              label="Proveedor"
+              selectedKeys={[proveedor]}
+              onSelectionChange={(k) => setProveedor((Array.from(k)[0] as string) || 'todos')}
+            >
+              {[
+                <SelectItem key="todos">Todos</SelectItem>,
+                ...proveedores.map((p) => <SelectItem key={p}>{p}</SelectItem>),
+              ]}
+            </Select>
+            <Select
+              description={hayRango ? 'Usando el rango de fechas' : undefined}
+              disallowEmptySelection
+              isDisabled={hayRango}
+              label="Período"
+              selectedKeys={[periodo]}
+              onSelectionChange={(k) => setPeriodo((Array.from(k)[0] as Period) || 'todo')}
+            >
+              {PERIOD_OPTIONS.map((p) => (
+                <SelectItem key={p.key}>{p.label}</SelectItem>
               ))}
-            </TableBody>
-          </Table>
-        </div>
+            </Select>
+            <DateRangeFilter
+              resetKey={rangeKey}
+              onChange={(d, h) => {
+                setDesde(d);
+                setHasta(h);
+              }}
+            />
+          </>
+        }
+        filtersCols={3}
+        search={search}
+        searchPlaceholder="Buscar por número, proveedor o producto..."
+        title="Historial de compras"
+        onAction={() => router.push('/Dashboard/Purchase/New')}
+        onClearFilters={() => {
+          setSearch('');
+          setProveedor('todos');
+          setPeriodo('todo');
+          setDesde('');
+          setHasta('');
+          setRangeKey((k) => k + 1);
+        }}
+        onSearchChange={setSearch}
+      />
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <StatCard icon="heroicons:shopping-cart" label="Compras" tone="primary" value={filtered.length} />
+        <StatCard
+          icon="heroicons:banknotes"
+          label="Monto comprado"
+          tone="success"
+          value={`Bs. ${filtered.reduce((s, p) => s + p.total, 0).toFixed(2)}`}
+        />
+        <StatCard
+          icon="heroicons:tag"
+          label="Descuentos obtenidos"
+          tone="secondary"
+          value={`Bs. ${filtered.reduce((s, p) => s + p.descuento, 0).toFixed(2)}`}
+        />
       </div>
 
-      {/* Mensaje cuando no hay resultados */}
-      {filteredPurchases.length === 0 && !isLoading && (
-        <Card>
-          <CardBody className="p-8 text-center">
-            <Icon
-              icon="mdi:package-variant"
-              width="64"
-              height="64"
-              className="mx-auto text-gray-400 mb-3"
-            />
-            <h3 className="text-lg font-semibold text-gray-700 mb-2">
-              No se encontraron compras
-            </h3>
-            <p className="text-gray-500">
-              {searchTerm ? 'Intenta con otros términos de búsqueda' : 'Aún no hay compras registradas'}
+      {isLoading ? (
+        <div className="flex justify-center py-20">
+          <Spinner label="Cargando compras..." size="lg" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <Card className="border border-default-200 shadow-sm">
+          <CardBody className="p-10 text-center">
+            <Icon className="mx-auto text-gray-300 mb-3" height="56" icon="heroicons:shopping-cart" width="56" />
+            <h3 className="text-lg font-semibold text-gray-700 mb-1">No se encontraron compras</h3>
+            <p className="text-gray-500 text-sm">
+              {purchases.length === 0 ? 'Aún no hay compras registradas.' : 'Prueba con otra búsqueda o limpia los filtros.'}
             </p>
           </CardBody>
         </Card>
+      ) : (
+        <div className="space-y-3">
+          {pageItems.map((purchase) => (
+            <div
+              key={purchase.id}
+              className="rounded-2xl border border-default-200 bg-white shadow-sm hover:shadow-md hover:border-primary-200 transition-all p-4 sm:p-5"
+            >
+              <div className="flex flex-col md:flex-row md:items-center gap-4">
+                <div className="flex items-center gap-3 md:w-64 shrink-0">
+                  <div className="w-11 h-11 rounded-xl bg-secondary-50 text-secondary-600 flex items-center justify-center shrink-0">
+                    <Icon height="22" icon="heroicons:shopping-cart" width="22" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm">{purchase.numeroCompra}</p>
+                    <p className="text-xs text-gray-500">{formatShortDate(purchase.fecha)}</p>
+                  </div>
+                </div>
+
+                <div className="flex-1 min-w-0 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <div className="min-w-0">
+                    <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-0.5">Proveedor</p>
+                    <p className="font-medium truncate">{purchase.proveedor.nombre}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-0.5">Productos</p>
+                    <Chip size="sm" variant="flat">
+                      {purchase.detalles.length} · {getTotalItems(purchase)} unid.
+                    </Chip>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-0.5">Descuento</p>
+                    {purchase.descuento > 0 ? (
+                      <span className="text-red-600 font-medium">- Bs. {purchase.descuento.toFixed(2)}</span>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-0.5">Total</p>
+                    <p className="font-bold text-primary-700">Bs. {purchase.total.toFixed(2)}</p>
+                  </div>
+                </div>
+
+                <Button
+                  className="md:w-auto w-full shrink-0"
+                  color="primary"
+                  size="sm"
+                  startContent={<Icon height="18" icon="mdi:eye-outline" width="18" />}
+                  variant="flat"
+                  onPress={() => handleViewDetails(purchase)}
+                >
+                  Ver detalle
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
-      {/* Modal de detalles */}
-      <PurchaseDetailModal
-        isOpen={isOpen}
-        onClose={onClose}
-        purchase={selectedPurchase}
-      />
+      {filtered.length > ROWS_PER_PAGE && (
+        <div className="flex flex-col items-center gap-2 pt-2">
+          <Pagination isCompact showControls showShadow color="secondary" page={page} total={pages} onChange={setPage} />
+          <p className="text-xs text-gray-500">
+            Mostrando {(page - 1) * ROWS_PER_PAGE + 1}–{Math.min(page * ROWS_PER_PAGE, filtered.length)} de {filtered.length} compras
+          </p>
+        </div>
+      )}
+
+      <PurchaseDetailModal isOpen={isOpen} purchase={selectedPurchase} onClose={onClose} />
     </div>
   );
 }

@@ -9,6 +9,7 @@ import {
   Button,
   Input,
 } from "@heroui/react";
+import { Icon } from "@iconify/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
@@ -58,26 +59,15 @@ export default function NuevaUnidadModal({
       backdrop="blur"
       isOpen={isOpen}
       placement="center"
+      radius="lg"
       onClose={handleClose}
     >
       <ModalContent>
         <form>
-          <ModalHeader className="flex flex-col gap-1">
+          <ModalHeader className="flex flex-col gap-1 pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <svg
-                  className="w-5 h-5 text-green-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    d="M12 4v16m8-8H4"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                  />
-                </svg>
+              <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-green-100 text-green-600 shrink-0">
+                <Icon icon="mdi:ruler-square-compass" width="24" height="24" />
               </div>
               <div>
                 <h2 className="text-lg font-semibold">
@@ -99,19 +89,7 @@ export default function NuevaUnidadModal({
               label="Nombre de la unidad"
               placeholder="Ej: Docena, Paquete, Metro..."
               startContent={
-                <svg
-                  className="w-4 h-4 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a1.994 1.994 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                  />
-                </svg>
+                <Icon icon="mdi:tag-outline" width="18" height="18" className="text-gray-400" />
               }
               variant="bordered"
             />
@@ -126,39 +104,15 @@ export default function NuevaUnidadModal({
               maxLength={10}
               placeholder="DOC, PAQ, MT..."
               startContent={
-                <svg
-                  className="w-4 h-4 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                  />
-                </svg>
+                <Icon icon="mdi:file-document-outline" width="18" height="18" className="text-gray-400" />
               }
               variant="bordered"
             />
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div className="bg-primary-50 border border-primary-200 rounded-lg p-3">
               <div className="flex items-start gap-2">
-                <svg
-                  className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                  />
-                </svg>
-                <div className="text-xs text-blue-700">
+                <Icon icon="mdi:information-outline" width="18" height="18" className="text-primary-600 mt-0.5 flex-shrink-0" />
+                <div className="text-xs text-primary-700">
                   <p className="font-medium mb-1">Ejemplos de unidades:</p>
                   <ul className="space-y-1">
                     <li>
@@ -176,10 +130,11 @@ export default function NuevaUnidadModal({
 
           <ModalFooter>
             <Button
-              color="danger"
+              color="default"
               isDisabled={isSubmitting}
+              radius="lg"
               type="button"
-              variant="light"
+              variant="flat"
               onPress={handleClose}
             >
               Cancelar
@@ -188,6 +143,7 @@ export default function NuevaUnidadModal({
               color="success"
               isDisabled={!isValid}
               isLoading={isSubmitting}
+              radius="lg"
               type="button"
               onPress={() => handleSubmit(onSubmit)()}
             >

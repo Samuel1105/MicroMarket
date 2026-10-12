@@ -6,7 +6,8 @@ import { prisma } from "@/src/lib/prisma";
 export async function ListCustomer() {
   try {
     const clients = await prisma.cliente.findMany({
-      where: { estado: 1 },
+      // El "Cliente general" (carnet 0) es un registro del sistema para ventas rápidas: no se lista ni se edita
+      where: { estado: 1, carnet: { not: "0" } },
       select: {
         id: true,
         carnet: true,
@@ -15,7 +16,6 @@ export async function ListCustomer() {
       },
     });
     const response = CustomerListSchema.safeParse(clients);
-    console.log(clients)
     if (response.success) {
       return {
         data: response.data,

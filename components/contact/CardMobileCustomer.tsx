@@ -1,4 +1,4 @@
-import { Card, CardBody, Link } from "@heroui/react";
+import { Link } from "@heroui/react";
 import React from "react";
 import { Icon } from "@iconify/react/dist/iconify.js";
 
@@ -16,57 +16,45 @@ export default function CardMobileCustomer({
   return (
     <>
       {items.map((item) => (
-        <Card key={item.id} className="w-full">
-          <CardBody className="p-4">
-            <div className="flex justify-between items-start mb-3">
-              <div className="flex-1">
-                <h2 className="font-semibold text-lg mb-1 leading-tight">
-                  {`${item.nombre} `}
-                </h2>
-              </div>
-              <div className="flex gap-2 ml-2">
-                <Link
-                  className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-                  href={`/Dashboard/Contact/Customer/${item.id}/Edit`}
-                >
-                  <Icon
-                    color="#0007fc"
-                    height="20"
-                    icon="iconamoon:edit-thin"
-                    width="20"
-                  />
-                </Link>
-                <div className="p-2 rounded-full hover:bg-gray-100 transition-colors">
-                  <DeleteCustomerConfirm
-                    cliente={item}
-                    onDeleteSuccess={handleDeleteSuccess}
-                  />
-                </div>
+        <div
+          key={item.id}
+          className="rounded-2xl border border-default-200 bg-white shadow-sm hover:shadow-md hover:border-primary-200 transition-all p-4 sm:p-5"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-secondary-50 text-secondary-600 flex items-center justify-center shrink-0">
+              <Icon icon="heroicons:user" width="22" height="22" />
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-base truncate">{item.nombre}</p>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-sm text-gray-500">
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <Icon icon="heroicons:envelope" width="14" height="14" className="shrink-0" />
+                  <span className="truncate">{item.correo}</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Icon icon="heroicons:identification" width="14" height="14" />
+                  {item.carnet}
+                </span>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Icon
-                  className="text-gray-500"
-                  height="16"
-                  icon="heroicons:envelope"
-                  width="16"
+            <div className="flex items-center gap-2 shrink-0">
+              <Link
+                className="w-9 h-9 rounded-lg border border-default-200 flex items-center justify-center text-gray-500 hover:text-primary-600 hover:bg-primary-50 hover:border-primary-300 transition-colors"
+                href={`/Dashboard/Contact/Customer/${item.id}/Edit`}
+              >
+                <Icon icon="heroicons:pencil-square" width="17" height="17" />
+              </Link>
+              <div className="w-9 h-9 rounded-lg border border-default-200 flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors">
+                <DeleteCustomerConfirm
+                  cliente={item}
+                  onDeleteSuccess={handleDeleteSuccess}
                 />
-                <span className="text-sm text-gray-700">{item.correo}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Icon
-                  className="text-gray-500"
-                  height="16"
-                  icon="heroicons:identification"
-                  width="16"
-                />
-                <span className="text-sm text-gray-700">{item.carnet}</span>
               </div>
             </div>
-          </CardBody>
-        </Card>
+          </div>
+        </div>
       ))}
     </>
   );

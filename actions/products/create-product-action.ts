@@ -36,6 +36,7 @@ export async function createProductAction({
       data: {
         nombre: producto.nombre,
         descripcion: producto.descripcion ?? null,
+        stockMinimo: producto.stockMinimo ?? 10,
         categoriaID: producto.categoriaID,
         proveedorID: producto.proveedorID,
         unidadBaseID: producto.unidadBaseID,

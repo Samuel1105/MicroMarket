@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import BaseChart from './BaseChart'
+import type { EChartsOption } from 'echarts'
 import { getVentasPorCategoria } from '@/actions/dashboard/dashboard-action'
 
 interface CategoriaVenta {
@@ -36,7 +37,7 @@ export default function VentasCategoriaChart() {
 
   const total = data.reduce((sum, cat) => sum + cat.valor, 0)
 
-  const option: echarts.EChartsOption = {
+  const option: EChartsOption = {
     title: {
       text: 'Distribución de Ventas por Categoría',
       left: 'left',

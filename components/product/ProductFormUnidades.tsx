@@ -181,7 +181,7 @@ export default function ProductFormUnidades({
                       className={`p-2 rounded-lg ${
                         index === 0
                           ? "bg-green-100 text-green-600"
-                          : "bg-blue-100 text-blue-600"
+                          : "bg-primary-100 text-primary-600"
                       }`}
                     >
                       {index === 0 ? (

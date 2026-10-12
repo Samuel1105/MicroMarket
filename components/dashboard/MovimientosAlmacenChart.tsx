@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import BaseChart from './BaseChart'
+import type { EChartsOption } from 'echarts'
 import { getMovimientosAlmacen } from '@/actions/dashboard/dashboard-action'
 
 
@@ -40,7 +41,7 @@ export default function MovimientosAlmacenChart() {
   const totalSalidas = data.reduce((sum, d) => sum + d.salidas, 0)
   const balance = totalEntradas - totalSalidas
 
-  const option: echarts.EChartsOption = {
+  const option: EChartsOption = {
     title: {
       text: 'Movimientos de Almacén',
       left: 'left',
@@ -174,16 +175,16 @@ export default function MovimientosAlmacenChart() {
           <p className="text-xs text-red-600 mt-1">unidades</p>
         </div>
 
-        <div className={`rounded-lg p-4 ${balance >= 0 ? 'bg-blue-50' : 'bg-amber-50'}`}>
+        <div className={`rounded-lg p-4 ${balance >= 0 ? 'bg-primary-50' : 'bg-amber-50'}`}>
           <div className="flex items-center gap-2 mb-1">
-            <span className={`text-sm font-medium ${balance >= 0 ? 'text-blue-800' : 'text-amber-800'}`}>
+            <span className={`text-sm font-medium ${balance >= 0 ? 'text-primary-800' : 'text-amber-800'}`}>
               Balance
             </span>
           </div>
-          <p className={`text-2xl font-bold ${balance >= 0 ? 'text-blue-900' : 'text-amber-900'}`}>
+          <p className={`text-2xl font-bold ${balance >= 0 ? 'text-primary-900' : 'text-amber-900'}`}>
             {balance >= 0 ? '+' : ''}{balance.toLocaleString('es-BO')}
           </p>
-          <p className={`text-xs mt-1 ${balance >= 0 ? 'text-blue-600' : 'text-amber-600'}`}>
+          <p className={`text-xs mt-1 ${balance >= 0 ? 'text-primary-600' : 'text-amber-600'}`}>
             {balance >= 0 ? 'Superávit' : 'Déficit'}
           </p>
         </div>

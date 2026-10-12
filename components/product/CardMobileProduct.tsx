@@ -1,4 +1,4 @@
-import { Card, CardBody, Link } from "@heroui/react";
+import { Link } from "@heroui/react";
 import React from "react";
 import { Icon } from "@iconify/react/dist/iconify.js";
 
@@ -16,130 +16,84 @@ export default function CardMobileProduct({
   return (
     <>
       {items.map((item) => (
-        <Card
+        <div
           key={item.id}
-          className="w-full shadow-sm hover:shadow-md transition-all duration-200 border-l-4 border-l-blue-500"
+          className="rounded-2xl border border-default-200 bg-white shadow-sm hover:shadow-md hover:border-primary-200 transition-all p-4 sm:p-5"
         >
-          <CardBody className="p-3">
-            {/* Header con nombre y acciones */}
-            <div className="flex justify-between items-start mb-2">
-              <div className="flex-1">
-                <h2 className="font-bold text-lg text-gray-800 leading-tight mb-1">
-                  {item.nombre}
-                </h2>
-                {/* Descripción si existe */}
-                {item.descripcion && (
-                  <p className="text-sm text-gray-500 leading-tight mb-2">
-                    {item.descripcion}
-                  </p>
-                )}
-                {/* Estado y Stock en badges */}
-                <div className="flex gap-2 flex-wrap">
-                  <span
-                    className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${
-                      item.estado === 1
-                        ? "bg-green-100 text-green-700"
-                        : "bg-red-100 text-red-700"
-                    }`}
-                  >
-                    {item.estado === 1 ? "Activo" : "Inactivo"}
-                  </span>
-                  {item.stockTotal !== undefined && (
-                    <span
-                      className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${
-                        item.stockTotal > 10
-                          ? "bg-blue-100 text-blue-700"
-                          : item.stockTotal > 0
-                            ? "bg-orange-100 text-orange-700"
-                            : "bg-red-100 text-red-700"
-                      }`}
-                    >
-                      Stock: {item.stockTotal}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="flex gap-1 ml-2">
-                <Link
-                  className="p-1.5 rounded-md hover:bg-blue-50 transition-colors"
-                  href={`/Dashboard/Product/${item.id}/Edit`}
-                >
-                  <Icon
-                    className="text-blue-600"
-                    height="18"
-                    icon="iconamoon:edit-thin"
-                    width="18"
-                  />
-                </Link>
-                <div className="p-1.5 rounded-md hover:bg-red-50 transition-colors">
-                  <DeleteProductConfirm
-                    producto={item}
-                    onDeleteSuccess={handleDeleteSuccess}
-                  />
-                </div>
-              </div>
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-primary-50 text-primary-600 flex items-center justify-center shrink-0">
+              <Icon icon="heroicons:cube" width="22" height="22" />
             </div>
 
-            {/* Info compacta en líneas */}
-            <div className="space-y-1.5 text-sm">
-              <div className="flex items-center gap-2">
-                <Icon
-                  className="text-green-600 flex-shrink-0"
-                  height="14"
-                  icon="heroicons:tag"
-                  width="14"
-                />
-                <span className="text-gray-600 font-medium">
-                  {item.Categoria.nombre}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-semibold text-base truncate">{item.nombre}</p>
+                <span
+                  className={`text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
+                    item.estado === 1
+                      ? "bg-green-50 text-green-700"
+                      : "bg-red-50 text-red-700"
+                  }`}
+                >
+                  {item.estado === 1 ? "Activo" : "Inactivo"}
                 </span>
               </div>
 
-              <div className="flex items-center gap-2">
-                <Icon
-                  className="text-purple-600 flex-shrink-0"
-                  height="14"
-                  icon="heroicons:building-storefront"
-                  width="14"
-                />
-                <span className="text-gray-600">{item.Proveedor.nombre}</span>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-sm text-gray-500">
+                <span className="flex items-center gap-1.5">
+                  <Icon icon="heroicons:tag" width="14" height="14" />
+                  {item.Categoria.nombre}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Icon icon="heroicons:building-storefront" width="14" height="14" />
+                  {item.Proveedor.nombre}
+                </span>
+                {item.UnidadMedida.abreviatura && (
+                  <span className="flex items-center gap-1.5">
+                    <Icon icon="heroicons:scale" width="14" height="14" />
+                    {item.UnidadMedida.abreviatura}
+                  </span>
+                )}
               </div>
 
-              {item.UnidadMedida.abreviatura && (
-                <div className="flex items-center gap-2">
-                  <Icon
-                    className="text-orange-600 flex-shrink-0"
-                    height="14"
-                    icon="heroicons:scale"
-                    width="14"
-                  />
-                  <span className="text-gray-600 text-xs">
-                    Unidad:{" "}
-                    <span className="font-medium">
-                      {item.UnidadMedida.abreviatura}
-                    </span>
+              <div className="flex items-center gap-2 mt-2">
+                {item.precioVenta && (
+                  <span className="text-sm font-bold text-primary-700">
+                    Bs. {item.precioVenta}
                   </span>
-                </div>
-              )}
-
-              {/* Precio de venta si existe */}
-              {item.precioVenta && (
-                <div className="flex items-center gap-2">
-                  <Icon
-                    className="text-emerald-600 flex-shrink-0"
-                    height="14"
-                    icon="heroicons:currency-dollar"
-                    width="14"
-                  />
-                  <span className="text-gray-600 text-sm">
-                    <span className="font-semibold text-emerald-700">
-                      Bs. {item.precioVenta}
-                    </span>
+                )}
+                {item.stockTotal !== undefined && (
+                  <span
+                    className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                      item.stockTotal > 10
+                        ? "bg-secondary-50 text-secondary-700"
+                        : item.stockTotal > 0
+                          ? "bg-orange-50 text-orange-700"
+                          : "bg-red-50 text-red-700"
+                    }`}
+                  >
+                    Stock: {item.stockTotal}
                   </span>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </CardBody>
-        </Card>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <Link
+                className="w-9 h-9 rounded-lg border border-default-200 flex items-center justify-center text-gray-500 hover:text-primary-600 hover:bg-primary-50 hover:border-primary-300 transition-colors"
+                href={`/Dashboard/Product/${item.id}/Edit`}
+              >
+                <Icon icon="heroicons:pencil-square" width="17" height="17" />
+              </Link>
+              <div className="w-9 h-9 rounded-lg border border-default-200 flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors">
+                <DeleteProductConfirm
+                  producto={item}
+                  onDeleteSuccess={handleDeleteSuccess}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
       ))}
     </>
   );

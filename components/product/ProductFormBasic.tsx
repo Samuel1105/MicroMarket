@@ -127,8 +127,8 @@ export default function ProductFormBasic({ producto }: ProductFormBasicProps) {
           }
         />
         {watchedData[0] && (
-          <div className="mt-2 p-2 bg-blue-50 rounded-md">
-            <p className="text-xs text-blue-600">
+          <div className="mt-2 p-2 bg-primary-50 rounded-md">
+            <p className="text-xs text-primary-600">
               <strong>Vista previa:</strong> {watchedData[0]}
             </p>
           </div>
@@ -150,6 +150,21 @@ export default function ProductFormBasic({ producto }: ProductFormBasicProps) {
             {watchedData[1].length} caracteres
           </p>
         )}
+      </div>
+
+      {/* Stock mínimo */}
+      <div>
+        <Input
+          {...register("stockMinimo", { valueAsNumber: true })}
+          description="Cuando el stock (almacén + estante) baje de esta cantidad, el reporte de Almacén te avisará que hay que comprar. Se mide en la unidad base del producto."
+          errorMessage={errors.stockMinimo?.message as string | undefined}
+          isInvalid={!!errors.stockMinimo}
+          label="Stock mínimo"
+          min={0}
+          step="any"
+          type="number"
+          variant="bordered"
+        />
       </div>
 
       {/* Categoría */}

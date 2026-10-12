@@ -2,16 +2,8 @@
 import {
   Button,
   Pagination,
-  Table,
-  TableBody,
-  TableCell,
-  TableColumn,
-  TableHeader,
-  TableRow,
-  Chip,
 } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -20,9 +12,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Heading from "@/components/ui/Heading";
 import Loading from "@/components/ui/Loading";
 import CardMobile from "@/components/user/CardMobile";
-import DeleteUserConfirm from "@/components/user/DeleteUserConfirm";
 import { UserList } from "@/src/schema";
-import { getRoleName } from "@/src/utils/rolesName";
 
 export default function UserListView() {
   const [users, setUsers] = useState<UserList>([]);
@@ -94,84 +84,12 @@ export default function UserListView() {
           </Button>
         </div>
 
-        {/* Vista Desktop - Tabla */}
-        <div className="hidden md:block">
-          <Table
-            aria-label="Tabla de usuarios"
-            bottomContent={
-              <div className="flex w-full justify-center">
-                <Pagination
-                  isCompact
-                  showControls
-                  showShadow
-                  color="secondary"
-                  page={page}
-                  total={pages}
-                  onChange={(page) => setPage(page)}
-                />
-              </div>
-            }
-            classNames={{
-              wrapper: "min-h-[222px]",
-            }}
-          >
-            <TableHeader>
-              <TableColumn key="nombre">Nombre Completo</TableColumn>
-              <TableColumn key="correo">Correo</TableColumn>
-              <TableColumn key="celular">Celular</TableColumn>
-              <TableColumn key="rol">Rol</TableColumn>
-              <TableColumn key="acciones" className="text-center">
-                Acciones
-              </TableColumn>
-            </TableHeader>
-            <TableBody items={items}>
-              {(item) => (
-                <TableRow key={item.id}>
-                  <TableCell>
-                    {`${item.primerNombre} ${item.segundoNombre ?? ""} ${item.apellidoPaterno} ${item.apellidoMaterno}`}
-                  </TableCell>
-                  <TableCell>{item.correo}</TableCell>
-                  <TableCell>{item.celular}</TableCell>
-                  <TableCell>
-                    <Chip
-                      color={item.rol === 1 ? "primary" : "secondary"}
-                      size="sm"
-                      variant="flat"
-                    >
-                      {getRoleName(item.rol)}
-                    </Chip>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-4 justify-center">
-                      <Link
-                        className="transition-transform hover:scale-110"
-                        href={`/User/${item.id}/Edit`}
-                      >
-                        <Icon
-                          color="#0007fc"
-                          height="24"
-                          icon="iconamoon:edit-thin"
-                          width="24"
-                        />
-                      </Link>
-                      <DeleteUserConfirm
-                        usuario={item}
-                        onDeleteSuccess={handleDeleteSuccess}
-                      />
-                    </div>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+        <div className="space-y-3">
+          <CardMobile handleDeleteSuccess={handleDeleteSuccess} items={items} />
         </div>
 
-        {/* Vista Mobile - Cards */}
-        <div className="md:hidden space-y-4">
-          <CardMobile handleDeleteSuccess={handleDeleteSuccess} items={items} />
-
-          {/* Pagination para móvil */}
-          <div className="flex justify-center pt-4">
+        {pages > 1 && (
+          <div className="flex justify-center pt-6">
             <Pagination
               isCompact
               showControls
@@ -182,7 +100,7 @@ export default function UserListView() {
               onChange={(page) => setPage(page)}
             />
           </div>
-        </div>
+        )}
       </div>
     </ProtectedRoute>
   );

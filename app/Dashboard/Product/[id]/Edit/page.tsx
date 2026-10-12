@@ -63,6 +63,7 @@ async function getProductById(id: number) {
   // Transformar los datos para que coincidan con el tipo esperado
   return {
     ...productoSinConversion,
+    stockMinimo: Number(productoSinConversion.stockMinimo),
     conversiones: ConversionUnidad.map((conversion) => ({
       id: conversion.id,
       unidadOrigenID: conversion.unidadOrigenID,
@@ -95,14 +96,14 @@ export default async function EditProductPage({
       <Heading>Editando: {producto.nombre}</Heading>
       <div className="container mx-auto px-4 max-w-6xl">
         {/* Información del producto
-                <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="mb-4 p-4 bg-primary-50 border border-primary-200 rounded-lg">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-blue-600">
+                            <p className="text-sm text-primary-600">
                                 <strong>Categoría:</strong> {producto.Categoria.nombre} | 
                                 <strong> Proveedor:</strong> {producto.Proveedor.nombre}
                             </p>
-                            <p className="text-xs text-blue-500 mt-1">
+                            <p className="text-xs text-primary-500 mt-1">
                                 ID: {producto.id} | Unidades configuradas: {producto.conversiones.length}
                             </p>
                         </div>

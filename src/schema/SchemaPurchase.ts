@@ -120,6 +120,8 @@ export interface CreatePurchaseRequest {
   descuento?: number;
   total: number;
   usuarioIdRegistro: number;
+  /** Si la compra sale de una solicitud (borrador), se marca como confirmada */
+  solicitudID?: number;
   detalles: CreateDetailPurchaseRequest[];
 }
 

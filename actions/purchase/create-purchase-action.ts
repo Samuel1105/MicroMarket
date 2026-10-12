@@ -1,5 +1,7 @@
 "use server";
 import { prisma } from "@/src/lib/prisma";
+import { cerrarAvisosResueltos } from "@/src/lib/notifications";
+import { getBoliviaTime } from "@/src/utils/date";
 import { CreatePurchaseRequest } from "@/src/schema/SchemaPurchase";
 
 interface PurchaseResponse {
@@ -39,7 +41,7 @@ export async function createPurchaseAction(
           total: purchaseData.total,
           usuarioIdRegistro: purchaseData.usuarioIdRegistro,
           estado: 1,
-          fechaRegistro: new Date(),
+          fechaRegistro: getBoliviaTime(),
         },
       });
 
@@ -74,7 +76,7 @@ export async function createPurchaseAction(
             fechaVencimiento: detalle.lote.fechaVencimiento,
             cantidadInicialUnidadesBase: detalle.lote.cantidadInicialUnidadesBase,
             estado: 1,
-            fechaRegistro: new Date(),
+            fechaRegistro: getBoliviaTime(),
             usuarioIdRegistro: detalle.lote.usuarioIdRegistro,
           },
         });
@@ -92,7 +94,7 @@ export async function createPurchaseAction(
             referenciaID: compra.id, // Referencia a la compra
             tipoReferencia: 1, // 1 = COMPRA
             observaciones: `Ingreso por compra ${compra.numeroCompra}`,
-            fechaRegistro: new Date(),
+            fechaRegistro: getBoliviaTime(),
             usuarioIdRegistro: purchaseData.usuarioIdRegistro,
           },
         });
@@ -159,6 +161,17 @@ export async function createPurchaseAction(
         movimientosCreados,
       };
     });
+
+    // Si la compra salió de una solicitud, esa solicitud queda confirmada
+    if (purchaseData.solicitudID) {
+      await prisma.solicitudCompra.updateMany({
+        where: { id: purchaseData.solicitudID, estado: 0 },
+        data: { estado: 1, compraID: result.compraId, fechaCierre: getBoliviaTime() },
+      });
+    }
+
+    // Lo que se compró ya no necesita el aviso "comprar"
+    await cerrarAvisosResueltos(purchaseData.detalles.map((d) => d.productoID));
 
     return {
       success: true,
