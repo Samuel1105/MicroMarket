@@ -131,7 +131,6 @@ export default function PurchaseDetailTable({ products, details, onDetailsChange
             selectedKeys={selectedUnit ? [selectedUnit.unidadId.toString()] : []}
             onSelectionChange={(keys) => {
               const selectedKey = Array.from(keys)[0] as string;
-              console.log('Selected Unit ID:', selectedKey);
               handleUnitChange(selectedKey);
             }}
             className="w-full"

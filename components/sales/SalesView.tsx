@@ -528,6 +528,8 @@ export default function SalesView() {
     } finally {
       setIsProcessing(false);
       onPaymentModalClose();
+      // El lector de códigos escribe en el campo con foco: se lo devolvemos para el siguiente cliente
+      setTimeout(() => barcodeInputRef.current?.focus(), 250);
     }
   };
 

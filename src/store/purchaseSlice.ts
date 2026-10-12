@@ -52,7 +52,6 @@ export const createPurchaseSlice: StateCreator<PurchaseSliceType> = (set, get) =
     // Fetch productos por proveedor
     fetchProductosBySupplier: async (supplierId: number) => {
         const producto = await getProductsBySupplier(supplierId)
-        console.log(producto)
         set({
             productosProveedor: producto.data
         })

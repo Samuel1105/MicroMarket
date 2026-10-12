@@ -13,6 +13,7 @@ import Breadcrumbs from "@/components/ui/Breadcrumbs";
 import { ProductoConUnidades, PurchaseDetailItem, UnidadProducto } from "@/src/schema/SchemaPurchase";
 import { generatePurchaseNumber } from "@/src/store/purchaseSlice";
 import { useAppStore } from "@/src/store/useAppStore";
+import { hoyBolivia } from "@/src/utils/date";
 import { bs } from "@/src/utils/report-format";
 
 type Solicitud = { id: number; numero: string };
@@ -197,6 +198,13 @@ export default function NewPurchaseView() {
         return u;
       }),
     );
+  };
+
+  const cambiarVencimiento = (id: string, valor: string) => {
+    if (valor && valor < hoyBolivia()) {
+      toast.warning("Esa fecha de vencimiento ya pasó: el lote no se podrá sacar al estante ni vender.");
+    }
+    actualizar(id, { fechaVencimiento: valor ? new Date(valor) : undefined });
   };
 
   const unidadesDe = (l: PurchaseDetailItem): UnidadProducto[] =>
@@ -470,7 +478,7 @@ export default function NewPurchaseView() {
                             className={`${CELDA} border-default-200`}
                             type="date"
                             value={l.fechaVencimiento ? l.fechaVencimiento.toISOString().split("T")[0] : ""}
-                            onChange={(e) => actualizar(l.id, { fechaVencimiento: e.target.value ? new Date(e.target.value) : undefined })}
+                            onChange={(e) => cambiarVencimiento(l.id, e.target.value)}
                           />
                         </td>
                         <td className="px-2 py-2">
@@ -585,7 +593,7 @@ export default function NewPurchaseView() {
                           className={`${CELDA} border-default-200 mt-1 text-gray-900`}
                           type="date"
                           value={l.fechaVencimiento ? l.fechaVencimiento.toISOString().split("T")[0] : ""}
-                          onChange={(e) => actualizar(l.id, { fechaVencimiento: e.target.value ? new Date(e.target.value) : undefined })}
+                          onChange={(e) => cambiarVencimiento(l.id, e.target.value)}
                         />
                       </label>
                     </div>

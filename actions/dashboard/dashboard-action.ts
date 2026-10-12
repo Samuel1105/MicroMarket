@@ -1,16 +1,16 @@
 'use server'
 
 import { prisma } from '@/src/lib/prisma'
-import { startOfMonth, endOfMonth, subMonths, format, differenceInDays } from 'date-fns'
+import { fechaCorta, finMesBolivia, getBoliviaTime, hoyBolivia, inicioMesBolivia } from '@/src/utils/date'
 
 // ============= 1. VENTAS DEL MES =============
 export async function getVentasMensuales() {
   try {
-    const hoy = new Date()
-    const inicioMesActual = startOfMonth(hoy)
-    const finMesActual = endOfMonth(hoy)
-    const inicioMesAnterior = startOfMonth(subMonths(hoy, 1))
-    const finMesAnterior = endOfMonth(subMonths(hoy, 1))
+    const hoy = getBoliviaTime()
+    const inicioMesActual = inicioMesBolivia(hoy)
+    const finMesActual = finMesBolivia(hoy)
+    const inicioMesAnterior = inicioMesBolivia(hoy, -1)
+    const finMesAnterior = finMesBolivia(hoy, -1)
 
     // Ventas del mes actual agrupadas por día
     const ventasMesActual = await prisma.venta.groupBy({
@@ -47,7 +47,7 @@ export async function getVentasMensuales() {
 
     // Formatear datos para el gráfico
     const diasMesActual = ventasMesActual.map(v => ({
-      fecha: format(v.fechaVenta!, 'dd/MM'),
+      fecha: fechaCorta(v.fechaVenta!),
       total: Number(v._sum.total || 0)
     }))
 
@@ -73,7 +73,7 @@ export async function getVentasMensuales() {
 // MEJORADO: Ahora agrupa por producto, no por stockVenta (evita duplicados)
 export async function getTop10ProductosVendidos() {
   try {
-    const inicioMes = startOfMonth(new Date())
+    const inicioMes = inicioMesBolivia()
     
     // Obtener ventas agrupadas por producto
     const ventasPorProducto = await prisma.$queryRaw<Array<{
@@ -124,7 +124,7 @@ export async function getTop10ProductosVendidos() {
 // ============= 3. DISTRIBUCIÓN POR CATEGORÍA =============
 export async function getVentasPorCategoria() {
   try {
-    const inicioMes = startOfMonth(new Date())
+    const inicioMes = inicioMesBolivia()
 
     const ventasPorCategoria = await prisma.$queryRaw<Array<{
       categoria: string
@@ -160,9 +160,9 @@ export async function getVentasPorCategoria() {
 // ============= INVENTARIO COMPLETO CON ALERTAS =============
 export async function getInventarioCompleto() {
   try {
-    const hoy = new Date()
-    const inicioMesActual = startOfMonth(hoy)
-    const inicioMesAnterior = startOfMonth(subMonths(hoy, 1))
+    const hoy = getBoliviaTime()
+    const inicioMesActual = inicioMesBolivia(hoy)
+    const inicioMesAnterior = inicioMesBolivia(hoy, -1)
 
     const inventario = await prisma.$queryRaw<Array<{
       productoID: number
@@ -395,9 +395,8 @@ export async function notificarCompra(productos: any[]) {
 // MEJORADO: Agrupa por lote y considera TODOS los lotes (no solo StockVenta)
 export async function getProductosProximosVencer() {
   try {
-    const hoy = new Date()
-    const en30Dias = new Date()
-    en30Dias.setDate(hoy.getDate() + 30)
+    const hoy = new Date(`${hoyBolivia()}T00:00:00.000Z`)
+    const en30Dias = new Date(hoy.getTime() + 30 * 86400000)
 
     // Obtener lotes próximos a vencer con cantidad disponible
     const lotesProximosVencer = await prisma.$queryRaw<Array<{
@@ -442,7 +441,7 @@ export async function getProductosProximosVencer() {
           cantidad: cantidadDisponible,
           unidad: lote.unidadAbrev || '',
           fechaVencimiento: lote.fechaVencimiento,
-          diasRestantes: differenceInDays(lote.fechaVencimiento, hoy)
+          diasRestantes: Math.round((lote.fechaVencimiento.getTime() - hoy.getTime()) / 86400000)
         }
       })
       .filter((item): item is NonNullable<typeof item> => item !== null)
@@ -456,8 +455,8 @@ export async function getProductosProximosVencer() {
 // ============= 6. MOVIMIENTOS DE ALMACÉN =============
 export async function getMovimientosAlmacen() {
   try {
-    const inicioMes = startOfMonth(new Date())
-    const finMes = endOfMonth(new Date())
+    const inicioMes = inicioMesBolivia()
+    const finMes = finMesBolivia()
 
     const movimientos = await prisma.movimientoAlmacen.groupBy({
       by: ['fechaRegistro', 'tipoMovimiento'],
@@ -480,7 +479,7 @@ export async function getMovimientosAlmacen() {
     
     movimientos.forEach(mov => {
       if (mov.fechaRegistro) {
-        const fecha = format(mov.fechaRegistro, 'dd/MM')
+        const fecha = fechaCorta(mov.fechaRegistro)
         const actual = movimientosPorFecha.get(fecha) || { entradas: 0, salidas: 0 }
         const cantidad = Number(mov._sum.cantidadUnidadesBase || 0)
         

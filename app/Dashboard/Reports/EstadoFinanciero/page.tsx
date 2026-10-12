@@ -161,7 +161,7 @@ export default function FinancialReport() {
   const sinMovimiento = data ? data.actual.numeroVentas === 0 && data.actual.compras === 0 : false;
 
   return (
-    <ProtectedRoute allowedRoles={[1]}>
+    <ProtectedRoute allowedRoles={[1, 4]}>
       <div className="p-4 md:p-8 space-y-5">
         <ReportHeader
           crumb="Estado financiero"

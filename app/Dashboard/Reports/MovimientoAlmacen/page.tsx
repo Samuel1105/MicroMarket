@@ -123,7 +123,7 @@ export default function WarehouseMovementsReport() {
   const sinMov = data ? data.actual.nEntradas === 0 && data.actual.nTraslados === 0 : false;
 
   return (
-    <ProtectedRoute allowedRoles={[1, 2, 3]}>
+    <ProtectedRoute allowedRoles={[1, 3, 4]}>
       <div className="p-4 md:p-8 space-y-5">
         <ReportHeader
           crumb="Movimiento de almacén"

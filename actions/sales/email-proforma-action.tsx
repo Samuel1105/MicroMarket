@@ -5,6 +5,7 @@ import ProformaEmail from "../email/ProformaEmail";
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import fs from 'fs';
 import path from 'path';
+import { getBoliviaTime } from '@/src/utils/date';
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -181,10 +182,12 @@ async function generarPDFConPDFLib({ venta, cliente, items }: EnviarProformaPara
     color: darkText,
   });
   
-  const fechaActual = new Date().toLocaleDateString('es-ES', {
+  // Fecha de Bolivia (el servidor puede estar en UTC): se lee en UTC porque getBoliviaTime() ya viene ajustada
+  const fechaActual = getBoliviaTime().toLocaleDateString('es-ES', {
     year: 'numeric',
     month: 'long',
-    day: 'numeric'
+    day: 'numeric',
+    timeZone: 'UTC'
   });
   
   page.drawText(`Fecha: ${fechaActual}`, {

@@ -29,7 +29,7 @@ export default async function page({
     const { id } = await params;
     const unit = await getUnitById(+id);
     return (
-        <ProtectedRoute allowedRoles={[1, 2]}>
+        <ProtectedRoute allowedRoles={[1]}>
             <Heading>Editando a {unit.nombre}</Heading>
             <div className="container mx-auto px-4 max-w-6xl">
                 <div className="w-full pt-5">

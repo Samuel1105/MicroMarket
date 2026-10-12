@@ -1,16 +1,20 @@
+import { hoyBolivia } from "@/src/utils/date";
+
 export type Severidad = "danger" | "warning" | "success";
 
 /** Días que faltan para la fecha (negativo si ya venció). null si no hay fecha. */
 export function getDiasParaVencer(fecha: string | null | undefined): number | null {
   if (!fecha) return null;
-  const hoy = new Date();
 
-  hoy.setHours(0, 0, 0, 0);
-  const venc = new Date(fecha);
+  // Se comparan días calendario (YYYY-MM-DD) contra "hoy" de Bolivia: sin depender de la zona horaria
+  // del navegador. Un producto que vence hoy tiene 0 días (todavía se puede vender).
+  const aMs = (s: string) => {
+    const [y, m, d] = s.slice(0, 10).split("-").map(Number);
 
-  venc.setHours(0, 0, 0, 0);
+    return Date.UTC(y, m - 1, d);
+  };
 
-  return Math.round((venc.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+  return Math.round((aMs(fecha) - aMs(hoyBolivia())) / (1000 * 60 * 60 * 24));
 }
 
 export function getSeveridad(dias: number | null): Severidad | null {

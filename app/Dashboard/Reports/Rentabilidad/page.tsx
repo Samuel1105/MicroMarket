@@ -284,7 +284,7 @@ export default function ProductProfitabilityAnalysis() {
   ];
 
   return (
-    <ProtectedRoute allowedRoles={[1]}>
+    <ProtectedRoute allowedRoles={[1, 4]}>
       <div className="p-4 md:p-8 space-y-5">
         <ReportHeader
           crumb="Rentabilidad"

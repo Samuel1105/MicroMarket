@@ -81,7 +81,6 @@ export const useProductForm = ({
   // Procesamiento para crear producto
   const processCreateData = async (data: ProductoCompleteForm) => {
     try {
-      console.log("🔄 Creando producto...");
 
       const apiData: ProductoApiData = {
         producto: {
@@ -125,7 +124,6 @@ export const useProductForm = ({
   // Procesamiento para actualizar producto
   const processUpdateData = async (data: ProductoCompleteEditForm) => {
     try {
-      console.log("🔄 Actualizando producto...");
 
       if (!data.id) {
         throw new Error("ID del producto no encontrado");
@@ -171,8 +169,6 @@ export const useProductForm = ({
             ? conversionesEliminadas
             : undefined,
       };
-
-      console.log(apiData);
 
       // Aquí necesitarás crear la acción updateProductAction
       const result = await updateProductAction(apiData);

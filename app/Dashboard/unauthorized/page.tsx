@@ -2,24 +2,10 @@
 import Link from "next/link";
 
 import { useAuth } from "@/app/context/AuthContext";
+import { getRoleName } from "@/src/utils/rolesName";
 
 export default function UnauthorizedPage() {
   const { user } = useAuth();
-
-  const getRoleName = (rol: number) => {
-    switch (rol) {
-      case 1:
-        return "Administrador";
-      case 3:
-        return "Almacen";
-      case 4:
-        return "Reportes";
-      case 5:
-        return "Compras";
-      default:
-        return "Usuario";
-    }
-  };
 
   return (
     <div className="flex flex-col items-center justify-center h-96">

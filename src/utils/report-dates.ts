@@ -1,3 +1,5 @@
+import { hoyBolivia } from "@/src/utils/date";
+
 /**
  * Fechas de los reportes.
  *
@@ -20,14 +22,11 @@ export function toDateString(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-/** Rango por defecto de los reportes: del día 1 del mes actual hasta hoy */
+/** Rango por defecto de los reportes: del día 1 del mes actual hasta hoy (hoy = hoy en Bolivia) */
 export function getCurrentMonthRange(): { start: string; end: string } {
-  const hoy = new Date();
+  const hoy = hoyBolivia();
 
-  return {
-    start: toDateString(new Date(hoy.getFullYear(), hoy.getMonth(), 1)),
-    end: toDateString(hoy),
-  };
+  return { start: `${hoy.slice(0, 8)}01`, end: hoy };
 }
 
 /** Convierte "YYYY-MM-DD" (inicio/fin) en límites inclusivos para consultas. */
@@ -88,20 +87,20 @@ export const REPORT_PRESETS: { key: PresetKey; label: string }[] = [
 ];
 
 export function presetRange(key: PresetKey): { start: string; end: string } {
-  const hoy = new Date();
-  const hoyStr = toDateString(hoy);
+  const hoyStr = hoyBolivia();
+  const [y, m] = parts(hoyStr);
 
   if (key === "mes") return getCurrentMonthRange();
   if (key === "mes_pasado") {
-    const ini = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
-    const fin = new Date(hoy.getFullYear(), hoy.getMonth(), 0);
+    const ini = new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 10);
+    const fin = new Date(Date.UTC(y, m - 1, 0)).toISOString().slice(0, 10);
 
-    return { start: toDateString(ini), end: toDateString(fin) };
+    return { start: ini, end: fin };
   }
   if (key === "7d") return { start: addDays(hoyStr, -6), end: hoyStr };
   if (key === "30d") return { start: addDays(hoyStr, -29), end: hoyStr };
 
-  return { start: toDateString(new Date(hoy.getFullYear(), 0, 1)), end: hoyStr };
+  return { start: `${y}-01-01`, end: hoyStr };
 }
 
 /** "01/09/2026 – 18/09/2026" */

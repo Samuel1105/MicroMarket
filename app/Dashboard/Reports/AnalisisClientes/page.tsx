@@ -128,7 +128,7 @@ export default function CustomerAnalysisReport() {
   );
 
   return (
-    <ProtectedRoute allowedRoles={[1, 2]}>
+    <ProtectedRoute allowedRoles={[1, 4]}>
       <div className="p-4 md:p-8 space-y-5">
         <ReportHeader
           crumb="Análisis de clientes"

@@ -8,7 +8,7 @@ import UnitForm from '@/components/unit/UnitForm'
 
 export default function page() {
   return (
-    <ProtectedRoute allowedRoles={[1 ,2]}>
+    <ProtectedRoute allowedRoles={[1]}>
       <Heading> Nueva Unidad de Medida</Heading>
       <div className='container mx-auto px-4 max-w-6xl'>
         <div className='w-full pt-5'>

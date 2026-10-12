@@ -163,7 +163,7 @@ export default function WarehouseInventoryReport() {
   const hayVencimientos = data ? data.vencimientosSemana.some((s) => s.valor > 0) : false;
 
   return (
-    <ProtectedRoute allowedRoles={[1, 2]}>
+    <ProtectedRoute allowedRoles={[1, 4]}>
       <div className="p-4 md:p-8 space-y-5">
         <ReportHeader
           crumb="Almacén de productos"

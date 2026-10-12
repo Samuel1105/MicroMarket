@@ -8,7 +8,6 @@ import { getBoliviaTime } from "@/src/utils/date";
 
 export async function updateProductAction(data: ProductoUpdateApiData) {
   try {
-    console.log("🔄 Iniciando actualización de producto...", data);
 
     const result = await prisma.$transaction(async (tx) => {
       // 1. Actualizar el producto principal
@@ -45,9 +44,6 @@ export async function updateProductAction(data: ProductoUpdateApiData) {
             //fechaActualizacion: new Date()
           },
         });
-        console.log(
-          `🗑️ ${data.conversionesEliminadas.length} conversiones marcadas como eliminadas`,
-        );
       }
 
       // 3. Procesar conversiones (actualizar existentes y crear nuevas)
@@ -88,7 +84,6 @@ export async function updateProductAction(data: ProductoUpdateApiData) {
       return productoActualizado;
     });
 
-    console.log("✅ Producto actualizado exitosamente:", result.id);
 
     // Revalidar las páginas que muestran productos
     revalidatePath("/Dashboard/Product/List");

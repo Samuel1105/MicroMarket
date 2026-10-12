@@ -123,16 +123,16 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
     icon: <Icon icon="lucide:bar-chart-2" width="24" height="24" />,
     submenu: true,
     subMenuItems: [
-      { title: 'Estado Financiero', path: '/Dashboard/Reports/EstadoFinanciero', roles: [1] },
-      { title: 'Rentabilidad', path: '/Dashboard/Reports/Rentabilidad', roles: [1] },
-      { title: 'Evolución de ventas', path: '/Dashboard/Reports/EvolucionVentas', roles: [1, 2] },
-      { title: 'Analisis de clientes', path: '/Dashboard/Reports/AnalisisClientes', roles: [1, 2] },
-      { title: 'Ventas por producto', path: '/Dashboard/Reports/VentasPorProducto', roles: [1, 2] },
-      { title: 'Almacén de productos', path: '/Dashboard/Reports/AlmacenProductos', roles: [1, 2] },
-      { title: 'Movimiento de almacén', path: '/Dashboard/Reports/MovimientoAlmacen', roles: [1, 2, 3] },
-      { title: 'Ventas por vendedor', path: '/Dashboard/Reports/VentasPorVendedor', roles: [1, 2] },
+      { title: 'Estado Financiero', path: '/Dashboard/Reports/EstadoFinanciero', roles: [1, 4] },
+      { title: 'Rentabilidad', path: '/Dashboard/Reports/Rentabilidad', roles: [1, 4] },
+      { title: 'Evolución de ventas', path: '/Dashboard/Reports/EvolucionVentas', roles: [1, 4] },
+      { title: 'Analisis de clientes', path: '/Dashboard/Reports/AnalisisClientes', roles: [1, 4] },
+      { title: 'Ventas por producto', path: '/Dashboard/Reports/VentasPorProducto', roles: [1, 4] },
+      { title: 'Almacén de productos', path: '/Dashboard/Reports/AlmacenProductos', roles: [1, 4] },
+      { title: 'Movimiento de almacén', path: '/Dashboard/Reports/MovimientoAlmacen', roles: [1, 3, 4] },
+      { title: 'Ventas por vendedor', path: '/Dashboard/Reports/VentasPorVendedor', roles: [1, 4] },
     ],
-    roles: [1, 3, 4], // Admin, reportes y almacen (almacen solo ve movimiento de almacén)
+    roles: [1, 3, 4], // Admin y Gestor de Reportes (todos); Almacén solo ve movimiento de almacén
   },
   {
     title: "Configuración",
@@ -140,7 +140,7 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
     icon: <Icon height="24" icon="lucide:settings" width="24" />,
     submenu: true,
     subMenuItems: [
-      { title: "U. Medidas", path: "/Dashboard/Config/Unit/List", roles: [1, 2] },
+      { title: "U. Medidas", path: "/Dashboard/Config/Unit/List", roles: [1] },
     ],
     roles: [1], // Solo admin
   },

@@ -1,5 +1,6 @@
 "use server";
 import { prisma } from "@/src/lib/prisma";
+import { hoyBolivia } from "@/src/utils/date";
 
 // Obtener historial completo de ventas
 export async function getSalesHistory() {
@@ -381,9 +382,9 @@ export async function getSalesByClient(clientId: number) {
 // Obtener estadísticas de ventas
 export async function getSalesStatistics() {
   try {
-    const today = new Date();
-    const startOfDay = new Date(today.setHours(0, 0, 0, 0));
-    const endOfDay = new Date(today.setHours(23, 59, 59, 999));
+    const hoy = hoyBolivia();
+    const startOfDay = new Date(`${hoy}T00:00:00.000Z`);
+    const endOfDay = new Date(`${hoy}T23:59:59.999Z`);
 
     // Ventas de hoy
     const ventasHoy = await prisma.venta.findMany({
