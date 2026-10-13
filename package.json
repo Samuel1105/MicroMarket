@@ -1,17 +1,27 @@
 {
-  "name": "next-app-template",
-  "version": "0.0.1",
+  "name": "micromercado",
+  "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@11.1.2",
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
+    "start:prod": "next start -p 3000",
+    "postinstall": "prisma generate",
+    "typecheck": "tsc --noEmit",
     "lint": "next lint",
+    "db:push": "prisma db push",
+    "db:schema": "prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > prisma/sql/00_esquema_completo.sql",
+    "db:export": "node --env-file=.env prisma/export-datos.js",
+    "db:seed": "node --env-file=.env prisma/seed-demo.js",
+    "db:seed:confirmar": "node --env-file=.env prisma/seed-demo.js --confirmar",
     "tauri": "tauri",
-    "tauri:build": "tauri build",
     "tauri:dev": "tauri dev",
-    "start:prod": "next start -p 3000"
+    "tauri:build": "tauri build"
   },
   "dependencies": {
     "@heroui/react": "^2.8.4",

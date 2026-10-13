@@ -1,5 +1,7 @@
 "use server";
 import { prisma } from "@/src/lib/prisma";
+import { ANULACION_VENTA, ESTADO_ACTIVO, ESTADO_ANULADO } from "@/src/lib/anulaciones";
+import { cargarAnulaciones } from "@/src/lib/anulaciones-datos";
 import { hoyBolivia } from "@/src/utils/date";
 
 // Obtener historial completo de ventas
@@ -7,12 +9,13 @@ export async function getSalesHistory() {
   try {
     const ventas = await prisma.venta.findMany({
       where: {
-        estado: 1, // Solo ventas activas/completadas
+        estado: { in: [ESTADO_ACTIVO, ESTADO_ANULADO] }, // vigentes y anuladas (las anuladas se muestran marcadas)
       },
       select: {
         id: true,
         numeroVenta: true,
         fechaVenta: true,
+        usuarioRegistro: true,
         subtotal: true,
         descuento: true,
         impuestos: true,
@@ -81,9 +84,13 @@ export async function getSalesHistory() {
       },
     });
 
+    const anulaciones = await cargarAnulaciones(ANULACION_VENTA, ventas.filter(v => v.estado === ESTADO_ANULADO).map(v => v.id));
+
     // Transformar datos
     const ventasTransformadas = ventas.map(venta => ({
       id: venta.id,
+      usuarioRegistro: venta.usuarioRegistro,
+      anulacion: anulaciones.get(venta.id) ?? null,
       numeroVenta: venta.numeroVenta || 'SIN NÚMERO',
       fecha: venta.fechaVenta?.toISOString() || new Date().toISOString(),
       cliente: {

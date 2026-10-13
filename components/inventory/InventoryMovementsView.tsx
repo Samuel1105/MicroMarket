@@ -21,7 +21,7 @@ const TIPOS: Record<
     hint: string;
     icon: string;
     tile: string;
-    chip: "success" | "secondary" | "danger";
+    chip: "success" | "secondary" | "danger" | "warning";
     sign: string;
     qty: string;
   }
@@ -52,6 +52,15 @@ const TIPOS: Record<
     chip: "danger",
     sign: "-",
     qty: "text-red-600",
+  },
+  ajuste: {
+    label: "Ajuste de inventario",
+    hint: "Se corrigió el stock",
+    icon: "heroicons:adjustments-horizontal",
+    tile: "bg-amber-50 text-amber-600",
+    chip: "warning",
+    sign: "",
+    qty: "text-amber-700",
   },
 };
 
@@ -105,9 +114,10 @@ export default function InventoryMovementsView() {
 
   const counts = useMemo(
     () => ({
-      entrada: filtered.filter((m) => m.tipo === "entrada").length,
+      entrada: filtered.filter((m) => m.tipo === "entrada" && !m.anulado).length,
       traslado: filtered.filter((m) => m.tipo === "traslado").length,
       salida: filtered.filter((m) => m.tipo === "salida").length,
+      ajuste: filtered.filter((m) => m.tipo === "ajuste").length,
     }),
     [filtered],
   );
@@ -122,7 +132,7 @@ export default function InventoryMovementsView() {
 
       <ListHeaderCard
         activeFilters={activeFilters}
-        description="Todo lo que entra y sale: compras, traslados a estante y ventas"
+        description="Todo lo que entra y sale: compras, traslados a estante, ventas y ajustes de inventario"
         filters={
           <>
             <Select
@@ -135,6 +145,7 @@ export default function InventoryMovementsView() {
               <SelectItem key="entrada">Entradas (compras)</SelectItem>
               <SelectItem key="traslado">Traslados a estante</SelectItem>
               <SelectItem key="salida">Salidas (ventas)</SelectItem>
+              <SelectItem key="ajuste">Ajustes de inventario</SelectItem>
             </Select>
             <Select
               description={hayRango ? "Usando el rango de fechas" : undefined}
@@ -172,7 +183,7 @@ export default function InventoryMovementsView() {
         onSearchChange={setSearch}
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
           hint="Compras que ingresaron"
           icon="heroicons:arrow-down-tray"
@@ -193,6 +204,13 @@ export default function InventoryMovementsView() {
           label="Salidas"
           tone="danger"
           value={counts.salida}
+        />
+        <StatCard
+          hint="Correcciones de stock"
+          icon="heroicons:adjustments-horizontal"
+          label="Ajustes"
+          tone="warning"
+          value={counts.ajuste}
         />
       </div>
 
@@ -243,8 +261,8 @@ export default function InventoryMovementsView() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold truncate">{m.producto}</p>
-                        <Chip color={cfg.chip} size="sm" variant="flat">
-                          {cfg.label}
+                        <Chip color={m.anulado ? "default" : cfg.chip} size="sm" variant="flat">
+                          {m.anulado ? "Ingreso anulado" : cfg.label}
                         </Chip>
                       </div>
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 mt-1 text-xs text-gray-500">
@@ -276,13 +294,34 @@ export default function InventoryMovementsView() {
                             {m.codigoBarras}
                           </span>
                         )}
-                        {!m.referencia && !m.lote && <span>{cfg.hint}</span>}
+                        {m.ajuste && (
+                          <>
+                            <span className="flex items-center gap-1">
+                              <Icon height="13" icon="heroicons:map-pin" width="13" />
+                              {m.ajuste.ubicacion === "almacen" ? "Almacén" : "Estante"}
+                            </span>
+                            <span className="flex items-center gap-1 font-semibold text-amber-700">
+                              <Icon height="13" icon="heroicons:tag" width="13" />
+                              {m.ajuste.motivo}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Icon height="13" icon="heroicons:user" width="13" />
+                              {m.ajuste.usuario}
+                            </span>
+                          </>
+                        )}
+                        {!m.referencia && !m.lote && !m.ajuste && <span>{cfg.hint}</span>}
                       </div>
+                      {m.ajuste?.comentario && <p className="text-xs text-gray-500 mt-1">“{m.ajuste.comentario}”</p>}
                     </div>
 
                     <div className="text-right shrink-0">
-                      <p className={`text-lg font-bold leading-tight ${cfg.qty}`}>
-                        {cfg.sign}
+                      <p
+                        className={`text-lg font-bold leading-tight ${
+                          m.anulado ? "text-gray-400 line-through" : m.tipo === "ajuste" ? (m.cantidad < 0 ? "text-red-600" : "text-green-600") : cfg.qty
+                        }`}
+                      >
+                        {m.tipo === "ajuste" ? (m.cantidad > 0 ? "+" : "") : cfg.sign}
                         {m.cantidad} <span className="text-xs font-semibold">{m.unidad}</span>
                       </p>
                       <p className="text-xs text-gray-400">{formatTime(m.fecha)}</p>

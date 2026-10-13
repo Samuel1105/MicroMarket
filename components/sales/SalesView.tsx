@@ -17,6 +17,8 @@ import {
 } from '@/actions/sales/sales-action';
 import { enviarProformaPorCorreo } from '@/actions/sales/email-proforma-action';
 import { useAuth } from '@/app/context/AuthContext';
+import { MAX_DESCUENTO_SIN_ADMIN, puedeCambiarPrecio } from '@/src/lib/sales-rules';
+import { carnetValido, MENSAJE_CARNET, normalizarCarnet } from '@/src/lib/carnet';
 import { toast } from 'react-toastify';
 
 interface Cliente {
@@ -69,6 +71,8 @@ interface ItemVenta {
   codigosSeleccionados?: number[];
 }
 
+const redondear2 = (n: number) => Math.round(n * 100) / 100;
+
 export function generateSaleNumber(): string {
   const now = new Date();
   const year = now.getFullYear();
@@ -115,6 +119,19 @@ export default function SalesView() {
     loadProductosDisponibles();
   }, []);
 
+  // El lector de códigos "teclea" en el campo que tenga el foco: al cerrar el cobro se lo devolvemos
+  // (el modal tarda en irse y le quita el foco, por eso se intenta dos veces)
+  useEffect(() => {
+    if (isPaymentModalOpen) return;
+    const t1 = setTimeout(() => barcodeInputRef.current?.focus(), 350);
+    const t2 = setTimeout(() => barcodeInputRef.current?.focus(), 900);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [isPaymentModalOpen]);
+
   const loadProductosDisponibles = async () => {
     const result = await getAvailableProductsForSale();
     if (result.success && result.data) {
@@ -144,9 +161,16 @@ export default function SalesView() {
       return;
     }
 
+    if (carnetBusqueda.trim() !== '0' && !carnetValido(carnetBusqueda)) {
+      toast.error(MENSAJE_CARNET);
+      return;
+    }
+
     const result = await searchClientByCarnet(carnetBusqueda);
     if (result.success && result.data) {
       setCliente(result.data);
+    } else if (result.success === false && result.error) {
+      toast.error(result.error);
     } else {
       onClientModalOpen();
     }
@@ -170,7 +194,7 @@ export default function SalesView() {
 
     const usuarioId = user?.id || 0;
     const result = await createClient({
-      carnet: carnetBusqueda,
+      carnet: normalizarCarnet(carnetBusqueda),
       nombre: nuevoCliente.nombre,
       correo: nuevoCliente.correo,
       usuarioIdRegistro: usuarioId,
@@ -260,28 +284,31 @@ export default function SalesView() {
       );
 
       if (existente) {
-        if (existente.cantidad + 1 > producto.cantidadDisponible) {
+        if (existente.cantidad >= producto.cantidadDisponible - 0.0001) {
           toast.warning(`Solo hay ${producto.cantidadDisponible} unidades disponibles`);
           return prev;
         }
         return prev.map(item => {
           if (item.id !== existente.id) return item;
-          const cantidad = item.cantidad + 1;
-          const subtotal = cantidad * item.precioUnitario;
-          return { ...item, cantidad, subtotal, total: Math.max(0, subtotal - item.descuento) };
+          // Con decimales (venta por peso) no se pasa de lo que queda en el estante
+          const cantidad = redondear2(Math.min(item.cantidad + 1, producto.cantidadDisponible));
+          const subtotal = redondear2(cantidad * item.precioUnitario);
+          return { ...item, cantidad, subtotal, total: Math.max(0, redondear2(subtotal - item.descuento)) };
         });
       }
 
+      const cantidadInicial = Math.min(1, producto.cantidadDisponible);
+      const subtotalInicial = redondear2(cantidadInicial * producto.precioVenta);
       const nuevoItem: ItemVenta = {
         id: Date.now().toString(),
         stockVentaId: producto.stockVentaId,
         productoNombre: producto.producto.nombre,
         unidadNombre: `${producto.unidad.nombre} (${producto.unidad.abreviatura})`,
-        cantidad: 1,
+        cantidad: cantidadInicial,
         precioUnitario: producto.precioVenta,
-        subtotal: producto.precioVenta,
+        subtotal: subtotalInicial,
         descuento: 0,
-        total: producto.precioVenta,
+        total: subtotalInicial,
         esEscaneado: false,
       };
       return [...prev, nuevoItem];
@@ -365,18 +392,27 @@ export default function SalesView() {
         }
 
         let sanitizedValue = value;
-        if (field === 'precioUnitario' && sanitizedValue < 0) {
-          sanitizedValue = 0;
+        if (field === 'precioUnitario') {
+          if (!puedeCambiarPrecio(user?.rol)) {
+            toast.warning('Solo el administrador puede cambiar el precio de venta');
+            return item;
+          }
+          if (sanitizedValue < 0) sanitizedValue = 0;
         }
         if (field === 'descuento') {
           const subtotalActual = item.cantidad * item.precioUnitario;
-          sanitizedValue = Math.min(Math.max(0, sanitizedValue), subtotalActual);
+          // Sin ser administrador el descuento tiene tope por línea
+          const tope = puedeCambiarPrecio(user?.rol) ? subtotalActual : subtotalActual * MAX_DESCUENTO_SIN_ADMIN;
+          if (sanitizedValue > tope + 0.005) {
+            toast.warning(`Sin ser administrador el descuento máximo es del ${MAX_DESCUENTO_SIN_ADMIN * 100}% (Bs. ${tope.toFixed(2)})`);
+          }
+          sanitizedValue = redondear2(Math.min(Math.max(0, sanitizedValue), tope));
         }
 
         const newItem = { ...item, [field]: sanitizedValue };
         if (field === 'cantidad' || field === 'precioUnitario' || field === 'descuento') {
-          newItem.subtotal = newItem.cantidad * newItem.precioUnitario;
-          newItem.total = Math.max(0, newItem.subtotal - newItem.descuento);
+          newItem.subtotal = redondear2(newItem.cantidad * newItem.precioUnitario);
+          newItem.total = Math.max(0, redondear2(newItem.subtotal - newItem.descuento));
         }
         return newItem;
       }
@@ -391,16 +427,40 @@ export default function SalesView() {
       if (item.esEscaneado || (item.codigosSeleccionados && item.codigosSeleccionados.length > 0)) return item;
 
       const disponible = productosDisponibles.find(p => p.stockVentaId === item.stockVentaId)?.cantidadDisponible ?? Infinity;
-      const nuevaCantidad = item.cantidad + delta;
+      const nuevaCantidad = redondear2(item.cantidad + delta);
 
       if (nuevaCantidad <= 0) return item;
-      if (nuevaCantidad > disponible) {
+      if (nuevaCantidad > disponible + 0.0001) {
         toast.warning(`Solo hay ${disponible} unidades disponibles`);
         return item;
       }
 
-      const subtotal = nuevaCantidad * item.precioUnitario;
-      return { ...item, cantidad: nuevaCantidad, subtotal, total: Math.max(0, subtotal - item.descuento) };
+      const subtotal = redondear2(nuevaCantidad * item.precioUnitario);
+      return { ...item, cantidad: nuevaCantidad, subtotal, total: Math.max(0, redondear2(subtotal - item.descuento)) };
+    }));
+  };
+
+  // Escribir la cantidad a mano (admite decimales: 0.5 kg). Se confirma al salir del campo o con Enter.
+  const setItemQty = (id: string, valor: string) => {
+    setItemsVenta(prev => prev.map(item => {
+      if (item.id !== id) return item;
+      if (item.esEscaneado || (item.codigosSeleccionados && item.codigosSeleccionados.length > 0)) return item;
+
+      const disponible = productosDisponibles.find(p => p.stockVentaId === item.stockVentaId)?.cantidadDisponible ?? Infinity;
+      const nueva = redondear2(Number(valor.replace(',', '.')));
+
+      if (!Number.isFinite(nueva) || nueva <= 0) {
+        toast.warning('Escribe una cantidad mayor a 0');
+        return item;
+      }
+      if (nueva > disponible + 0.0001) {
+        toast.warning(`Solo hay ${disponible} disponibles`);
+        const subtotalMax = redondear2(disponible * item.precioUnitario);
+        return { ...item, cantidad: disponible, subtotal: subtotalMax, total: Math.max(0, redondear2(subtotalMax - item.descuento)) };
+      }
+
+      const subtotal = redondear2(nueva * item.precioUnitario);
+      return { ...item, cantidad: nueva, subtotal, total: Math.max(0, redondear2(subtotal - item.descuento)) };
     }));
   };
 
@@ -528,8 +588,6 @@ export default function SalesView() {
     } finally {
       setIsProcessing(false);
       onPaymentModalClose();
-      // El lector de códigos escribe en el campo con foco: se lo devolvemos para el siguiente cliente
-      setTimeout(() => barcodeInputRef.current?.focus(), 250);
     }
   };
 
@@ -560,7 +618,7 @@ export default function SalesView() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-gray-500">
-              Venta <span className="font-semibold text-gray-700">{numeroVenta}</span>
+              Venta nueva <span className="text-xs text-gray-400">· el número se asigna al cobrar</span>
             </p>
           </div>
 
@@ -710,7 +768,15 @@ export default function SalesView() {
                               >
                                 −
                               </button>
-                              <span className="text-sm font-semibold w-5 text-center">{item.cantidad}</span>
+                              <input
+                                key={`${item.id}-${item.cantidad}`}
+                                aria-label={`Cantidad de ${item.productoNombre}`}
+                                className="text-sm font-semibold w-14 text-center bg-transparent outline-none"
+                                defaultValue={item.cantidad}
+                                inputMode="decimal"
+                                onBlur={(e) => { if (Number(e.target.value) !== item.cantidad) setItemQty(item.id, e.target.value); }}
+                                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                              />
                               <button
                                 type="button"
                                 className="w-6 h-6 font-bold text-gray-600"
@@ -729,6 +795,8 @@ export default function SalesView() {
                             min={0}
                             step="0.01"
                             aria-label="Precio unitario"
+                            isReadOnly={!puedeCambiarPrecio(user?.rol)}
+                            description={!puedeCambiarPrecio(user?.rol) ? 'Solo el administrador cambia el precio' : undefined}
                             value={item.precioUnitario.toString()}
                             onChange={(e) => updateItem(item.id, 'precioUnitario', Number(e.target.value) || 0)}
                             startContent={<span className="text-xs text-gray-400">Bs.</span>}

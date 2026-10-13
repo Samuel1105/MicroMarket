@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { carnetValido, MENSAJE_CARNET } from "@/src/lib/carnet";
+
 // Schema base para contactos
 export const contactSchema = z.object({
   id: z.number(),
@@ -83,21 +85,28 @@ export const CustomerListSchema = z.array(
   }),
 );
 
-export const CustomerCreateSchema = contactSchema.pick({
-  carnet: true,
-  nombre: true,
-  correo: true,
-  usuarioIdRegistro: true,
-});
+/** Carnet de un cliente real: formato válido (el "0" es solo del cliente general) */
+const carnetCliente = z.string().refine((v) => carnetValido(v), { message: MENSAJE_CARNET });
 
-export const CustomerUpdateSchema = contactSchema.pick({
-  id: true,
-  carnet: true,
-  nombre: true,
-  correo: true,
-  usuarioIdActualizacion: true,
-  fechaActualizacion: true,
-});
+export const CustomerCreateSchema = contactSchema
+  .pick({
+    carnet: true,
+    nombre: true,
+    correo: true,
+    usuarioIdRegistro: true,
+  })
+  .extend({ carnet: carnetCliente });
+
+export const CustomerUpdateSchema = contactSchema
+  .pick({
+    id: true,
+    carnet: true,
+    nombre: true,
+    correo: true,
+    usuarioIdActualizacion: true,
+    fechaActualizacion: true,
+  })
+  .extend({ carnet: carnetCliente });
 
 export const CustomerSchema = contactSchema.pick({
   id: true,

@@ -1,12 +1,16 @@
 /**
  * Datos de prueba para ver los reportes con información realista.
  *
- *   node --env-file=.env prisma/seed-demo.js
+ *   node --env-file=.env prisma/seed-demo.js --confirmar
  *
  * ¡BORRA los datos del negocio! (ventas, compras, productos, clientes, proveedores,
  * categorías, movimientos y usuarios) y los reemplaza por datos de demostración.
  * Se conservan: las unidades de medida base y la cuenta de administrador existente.
- * Haz un respaldo de la base antes de correrlo.
+ * Haz un respaldo de la base antes de correrlo. Sin el parámetro --confirmar no hace nada:
+ * solo muestra en qué base de datos escribiría.
+ *
+ * Las fechas son RELATIVAS: el último día de datos es AYER (hora de Bolivia) y el primero es el
+ * día 1 de hace 3 meses, así que "Este mes" y "Últimos 30 días" de los reportes siempre tienen datos.
  *
  * Es determinista: cada corrida genera los mismos datos (semilla fija).
  */
@@ -49,8 +53,11 @@ const addDays = (date, n) => new Date(date.getTime() + n * 86400000);
 const soloFecha = (date) => new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 const ymd = (date) => date.toISOString().slice(0, 10).replace(/-/g, "");
 
-const HOY = { y: 2026, m: 9, d: 18 };
-const INICIO = { y: 2026, m: 6, d: 1 };
+// Bolivia = UTC-4: "ayer" y "hace 3 meses" se calculan con la hora de pared de Bolivia
+const ayerBolivia = new Date(Date.now() - 4 * 3600 * 1000 - 86400000);
+const HOY = { y: ayerBolivia.getUTCFullYear(), m: ayerBolivia.getUTCMonth() + 1, d: ayerBolivia.getUTCDate() };
+const inicioDate = new Date(Date.UTC(HOY.y, HOY.m - 1 - 3, 1));
+const INICIO = { y: inicioDate.getUTCFullYear(), m: inicioDate.getUTCMonth() + 1, d: 1 };
 
 // ───────────────────────── catálogo ─────────────────────────
 const CATEGORIAS = ["Abarrotes", "Lácteos", "Bebidas", "Limpieza", "Snacks y Dulces"];
@@ -120,9 +127,28 @@ const USUARIOS_NUEVOS = [
   { primerNombre: "Pedro", apellidoPaterno: "Condori", apellidoMaterno: "Mamani", correo: "compras@micromercado.com", celular: 70000005, rol: 5 },
 ];
 const PASSWORD_DEMO = "Micro2026!";
+const UNIDADES_BASE = [
+  ["Unidad", "un"],
+  ["Kilogramo", "kg"],
+  ["Litro", "L"],
+  ["Caja", "cj"],
+  ["Bolsa", "bol"],
+  ["Paquete", "paq"],
+];
 
 // ───────────────────────── programa principal ─────────────────────────
 async function main() {
+  const [{ db }] = await prisma.$queryRaw`SELECT DB_NAME() AS db`;
+
+  console.log(`Base de datos: ${db}`);
+  console.log(`Período de datos: ${INICIO.y}-${String(INICIO.m).padStart(2, "0")}-01 → ${HOY.y}-${String(HOY.m).padStart(2, "0")}-${String(HOY.d).padStart(2, "0")}`);
+  if (!process.argv.includes("--confirmar")) {
+    console.log("\nNo se cambió nada. Esto BORRARÍA los datos de esa base y los reemplazaría por datos de demostración.");
+    console.log("Si es lo que quieres (y ya hiciste respaldo), vuelve a correrlo con --confirmar");
+    await prisma.$disconnect();
+
+    return;
+  }
   const hash = await bcrypt.hash(PASSWORD_DEMO, 10);
 
   await prisma.$transaction(
@@ -136,9 +162,25 @@ async function main() {
       }
       await tx.unidadMedida.deleteMany({ where: { id: { gt: 7 } } }); // unidades basura de pruebas anteriores
 
-      const admin = await tx.persona.findFirst({ where: { rol: 1, estado: 1 }, orderBy: { id: "asc" } });
+      let admin = await tx.persona.findFirst({ where: { rol: 1, estado: 1 }, orderBy: { id: "asc" } });
 
-      if (!admin) throw new Error("No hay un administrador activo: no se puede continuar");
+      if (!admin) {
+        admin = await tx.persona.create({
+          data: {
+            primerNombre: "Samuel",
+            segundoNombre: null,
+            apellidoPaterno: "Araoz",
+            apellidoMaterno: "Administrador",
+            correo: "admin@micromercado.com",
+            celular: 70000001,
+            contrase_a: hash,
+            rol: 1,
+            estado: 1,
+            fechaRegistro: dt(2026, 5, 20),
+          },
+        });
+      }
+
       await tx.persona.deleteMany({ where: { id: { not: admin.id } } });
 
       for (const t of ["Categoria", "Cliente", "CodigoBarrasItem", "Compra", "ConversionUnidad", "DetalleCompra",
@@ -158,7 +200,15 @@ async function main() {
         u[{ 2: "cajero", 3: "almacen", 4: "reportes", 5: "compras" }[nu.rol]] = p.id;
       }
 
-      // 3) unidades
+      // 3) unidades: una base nueva no tiene datos precargados
+      for (const [nombre, abreviatura] of UNIDADES_BASE) {
+        await tx.unidadMedida.upsert({
+          where: { id: UNIDADES_BASE.findIndex(([n]) => n === nombre) + 1 },
+          update: { nombre, abreviatura, estado: 1 },
+          create: { nombre, abreviatura, estado: 1 },
+        });
+      }
+
       const unidades = {};
 
       for (const un of await tx.unidadMedida.findMany()) unidades[un.nombre] = un.id;

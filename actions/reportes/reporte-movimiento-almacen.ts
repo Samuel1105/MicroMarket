@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/src/lib/prisma";
+import { MOV_DEL_LOTE, resumenMovimientosLote } from "@/src/lib/stock-almacen";
 import { getCostoPromedioBase } from "@/src/lib/report-cost";
 import { getBoliviaTime } from "@/src/utils/date";
 import { addDays, diaBD, diasEnRango, rangoAnterior, rangoReporte } from "@/src/utils/report-dates";
@@ -123,7 +124,7 @@ export async function getWarehouseMovements({
           cantidadInicialUnidadesBase: true,
           productoID: true,
           Producto: { select: { nombre: true, UnidadMedida: { select: { abreviatura: true, nombre: true } } } },
-          MovimientoAlmacen: { where: { tipoMovimiento: 2 }, select: { cantidadUnidadesBase: true } },
+          MovimientoAlmacen: { where: MOV_DEL_LOTE, select: { tipoMovimiento: true, cantidadUnidadesBase: true } },
           StockVenta: {
             select: { DetalleVenta: { where: { Venta: { estado: 1 } }, select: { cantidadUnidadesBase: true } } },
           },
@@ -179,16 +180,16 @@ export async function getWarehouseMovements({
 
     for (const l of lotes) {
       const inicial = Number(l.cantidadInicialUnidadesBase);
-      const extraido = l.MovimientoAlmacen.reduce((s, m) => s + Number(m.cantidadUnidadesBase), 0);
+      const mov = resumenMovimientosLote(l.MovimientoAlmacen);
       const vendido = l.StockVenta.reduce(
         (s, sv) => s + sv.DetalleVenta.reduce((t, d) => t + Number(d.cantidadUnidadesBase), 0),
         0,
       );
-      const enBodega = inicial - extraido;
+      const enBodega = inicial - mov.salidas + mov.ajusteAlmacen;
       const unidad = l.Producto.UnidadMedida.abreviatura || l.Producto.UnidadMedida.nombre;
       const t = teoricoEstante.get(l.productoID) ?? { esperado: 0, nombre: l.Producto.nombre, unidad };
 
-      t.esperado += extraido - vendido;
+      t.esperado += mov.salidas - vendido + mov.ajusteEstante;
       teoricoEstante.set(l.productoID, t);
 
       if (!l.fechaRegistro || enBodega <= 0.001) continue;

@@ -1,4 +1,5 @@
 import { prisma } from "@/src/lib/prisma";
+import { MOV_AJUSTE_ALMACEN, MOV_AJUSTE_ESTANTE } from "@/src/lib/stock-almacen";
 import { getBoliviaTime } from "@/src/utils/date";
 import { diaBD } from "@/src/utils/report-dates";
 
@@ -28,6 +29,8 @@ export async function cargarVencidos(start: Date, end: Date): Promise<VencidoDet
       numeroLote: true,
       fechaVencimiento: true,
       cantidadInicialUnidadesBase: true,
+      // Lo que se dio de baja (o se agregó) con un ajuste de inventario no es "vencido sin vender"
+      MovimientoAlmacen: { where: { tipoMovimiento: { in: [MOV_AJUSTE_ALMACEN, MOV_AJUSTE_ESTANTE] } }, select: { tipoMovimiento: true, cantidadUnidadesBase: true } },
       Producto: { select: { id: true, nombre: true, Categoria: { select: { nombre: true } } } },
       DetalleCompra: {
         select: { total: true, Lote: { where: { estado: 1 }, select: { cantidadInicialUnidadesBase: true } } },
@@ -56,7 +59,8 @@ export async function cargarVencidos(start: Date, end: Date): Promise<VencidoDet
       }
     }
 
-    const restante = Number(l.cantidadInicialUnidadesBase) - vendidas;
+    const ajustes = l.MovimientoAlmacen.reduce((s, m) => s + Number(m.cantidadUnidadesBase), 0);
+    const restante = Number(l.cantidadInicialUnidadesBase) - vendidas + ajustes;
 
     if (restante <= 0.001) continue;
 

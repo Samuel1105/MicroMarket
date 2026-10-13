@@ -2,6 +2,7 @@
 
 import { crearAviso, ESTADO_DESCARTADA, ESTADO_PENDIENTE, avisarCambio, TipoNotificacion } from "@/src/lib/notifications";
 import { prisma } from "@/src/lib/prisma";
+import { enAlmacenDelLote, MOV_DEL_LOTE } from "@/src/lib/stock-almacen";
 import { getBoliviaTime } from "@/src/utils/date";
 import { addDays } from "@/src/utils/report-dates";
 
@@ -98,7 +99,7 @@ export async function getEstadoEstante(): Promise<ProductoEstante[]> {
         select: {
           productoID: true,
           cantidadInicialUnidadesBase: true,
-          MovimientoAlmacen: { where: { tipoMovimiento: 2 }, select: { cantidadUnidadesBase: true } },
+          MovimientoAlmacen: { where: MOV_DEL_LOTE, select: { tipoMovimiento: true, cantidadUnidadesBase: true } },
         },
       }),
       prisma.detalleVenta.findMany({
@@ -115,9 +116,7 @@ export async function getEstadoEstante(): Promise<ProductoEstante[]> {
 
     for (const e of estantes) suma(enEstante, e.productoID, Number(e.cantidadUnidadesBase));
     for (const l of lotes) {
-      const sacado = l.MovimientoAlmacen.reduce((s, m) => s + Number(m.cantidadUnidadesBase), 0);
-
-      suma(enAlmacen, l.productoID, Math.max(Number(l.cantidadInicialUnidadesBase) - sacado, 0));
+      suma(enAlmacen, l.productoID, Math.max(enAlmacenDelLote(l.cantidadInicialUnidadesBase, l.MovimientoAlmacen), 0));
     }
     for (const v of ventas) suma(vendido, v.StockVenta.productoID, Number(v.cantidadUnidadesBase));
 

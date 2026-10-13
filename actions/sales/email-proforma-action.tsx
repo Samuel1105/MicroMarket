@@ -90,9 +90,12 @@ export async function enviarProformaPorCorreo({
   }
 }
 
+// Helvetica estándar solo dibuja Latin-1: lo demás se cambia por "?" en vez de hacer fallar el correo
+const limpiar = (s: string) => (s ?? '').replace(/[^\x20-\x7E\u00A0-\u00FF]/g, '?');
+
 async function generarPDFConPDFLib({ venta, cliente, items }: EnviarProformaParams): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([595, 842]); // A4 size
+  let page = pdfDoc.addPage([595, 842]); // A4 size
   const { width, height } = page.getSize();
   
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -220,7 +223,7 @@ async function generarPDFConPDFLib({ venta, cliente, items }: EnviarProformaPara
     color: primaryColor,
   });
   
-  page.drawText(cliente.nombre, {
+  page.drawText(limpiar(cliente.nombre), {
     x: 60,
     y: yPos - 32,
     size: 11,
@@ -228,7 +231,7 @@ async function generarPDFConPDFLib({ venta, cliente, items }: EnviarProformaPara
     color: darkText,
   });
   
-  page.drawText(cliente.correo, {
+  page.drawText(limpiar(cliente.correo), {
     x: 60,
     y: yPos - 47,
     size: 9,
@@ -289,9 +292,34 @@ async function generarPDFConPDFLib({ venta, cliente, items }: EnviarProformaPara
   });
   
   yPos -= 30;
-  
+
+  // Si hay muchos productos, el detalle sigue en otra hoja (con su propio encabezado de tabla)
+  const nuevaPagina = (conTabla: boolean) => {
+    page = pdfDoc.addPage([595, 842]);
+    yPos = height - 60;
+
+    page.drawText(`Proforma # ${limpiar(venta.numeroVenta)} (continuación)`, {
+      x: 50,
+      y: yPos,
+      size: 11,
+      font: boldFont,
+      color: primaryColor,
+    });
+    yPos -= 35;
+
+    if (conTabla) {
+      page.drawRectangle({ x: 50, y: yPos - 20, width: width - 100, height: 25, color: primaryColor });
+      [['DESCRIPCIÓN', 60], ['CANT', 320], ['P. UNIT', 375], ['DESC', 440], ['TOTAL', 490]].forEach(([titulo, x]) => {
+        page.drawText(titulo as string, { x: x as number, y: yPos - 13, size: 9, font: boldFont, color: rgb(1, 1, 1) });
+      });
+      yPos -= 30;
+    }
+  };
+
   // Items de la venta
   items.forEach((item, index) => {
+    if (yPos < 170) nuevaPagina(true);
+
     // Línea separadora sutil
     if (index > 0) {
       page.drawLine({
@@ -304,9 +332,10 @@ async function generarPDFConPDFLib({ venta, cliente, items }: EnviarProformaPara
     
     // Nombre del producto
     const maxLength = 35;
-    const nombre = item.productoNombre.length > maxLength
-      ? item.productoNombre.substring(0, maxLength) + '...'
-      : item.productoNombre;
+    const productoLimpio = limpiar(item.productoNombre);
+    const nombre = productoLimpio.length > maxLength
+      ? productoLimpio.substring(0, maxLength) + '...'
+      : productoLimpio;
     
     page.drawText(nombre, {
       x: 60,
@@ -357,6 +386,8 @@ async function generarPDFConPDFLib({ venta, cliente, items }: EnviarProformaPara
   });
   
   // ========== RESUMEN DE TOTALES ==========
+  // Los totales necesitan ~190 pt: si no caben, pasan a una hoja nueva
+  if (yPos < 290) nuevaPagina(false);
   yPos -= 20;
   
   // Línea superior
@@ -505,43 +536,54 @@ async function generarPDFConPDFLib({ venta, cliente, items }: EnviarProformaPara
     color: successColor,
   });
   
-  // ========== PIE DE PÁGINA ==========
-  const footerY = 70;
+  // ========== PIE DE PÁGINA (en cada hoja) ==========
+  const paginas = pdfDoc.getPages();
+  paginas.forEach((pg, idx) => {
+    const footerY = 70;
   
-  // Línea superior
-  page.drawLine({
-    start: { x: 50, y: footerY + 30 },
-    end: { x: width - 50, y: footerY + 30 },
-    thickness: 1.5,
-    color: primaryColor,
+    // Línea superior
+    pg.drawLine({
+      start: { x: 50, y: footerY + 30 },
+      end: { x: width - 50, y: footerY + 30 },
+      thickness: 1.5,
+      color: primaryColor,
+    });
+  
+    // Mensaje de agradecimiento
+    pg.drawText('¡Gracias por tu compra!', {
+      x: 50,
+      y: footerY + 10,
+      size: 10,
+      font: boldFont,
+      color: primaryColor,
+    });
+  
+    // Información de contacto
+    pg.drawText(`Email: ${process.env.GMAIL_EMAIL ?? 'micromercado.anita@gmail.com'}`, {
+      x: 50,
+      y: footerY - 5,
+      size: 8,
+      font: font,
+      color: mediumGray,
+    });
+  
+    // Dirección
+    pg.drawText('Cochabamba, Bolivia', {
+      x: 50,
+      y: footerY - 18,
+      size: 8,
+      font: font,
+      color: mediumGray,
+    });
+  
+    pg.drawText(`Página ${idx + 1} de ${paginas.length}`, {
+      x: width - 120,
+      y: footerY - 5,
+      size: 8,
+      font: font,
+      color: mediumGray,
+    });
   });
-  
-  // Mensaje de agradecimiento
-  page.drawText('¡Gracias por tu compra!', {
-    x: 50,
-    y: footerY + 10,
-    size: 10,
-    font: boldFont,
-    color: primaryColor,
-  });
-  
-  // Información de contacto
-  page.drawText('Email: anita@gmail.com', {
-    x: 50,
-    y: footerY - 5,
-    size: 8,
-    font: font,
-    color: mediumGray,
-  });
-  
-  // Dirección
-  page.drawText('Cochabamba, Bolivia', {
-    x: 50,
-    y: footerY - 18,
-    size: 8,
-    font: font,
-    color: mediumGray,
-  });
-  
+
   return await pdfDoc.save();
 }

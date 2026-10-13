@@ -230,7 +230,7 @@ export default function NewPurchaseView() {
       const r = await createPurchaseAction({ ...datos, numeroCompra, solicitudID: solicitud?.id });
 
       if (!r.success) throw new Error(r.error || "Error al crear la compra");
-      toast.success("Compra registrada exitosamente");
+      toast.success("Compra confirmada. Queda por recibir: Almacén validará lo que llegue.");
       clearDetailPurchase();
       setSelectedSupplierId(null);
       clearProductos();
@@ -255,7 +255,7 @@ export default function NewPurchaseView() {
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-bold leading-tight">Nueva compra</h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              Elige el proveedor, busca los productos, completa cantidad y precio y confirma. El stock entra al almacén.
+              Elige el proveedor, busca los productos, completa cantidad y precio y confirma el pedido. El stock entra al almacén cuando Almacén valide lo que reciba.
             </p>
           </div>
           <div className="flex items-center gap-3">

@@ -11,6 +11,7 @@ import TopProductosChart from "@/components/dashboard/TopProductosChart";
 import VentasMensualesChart from "@/components/dashboard/VentasMensualesChart";
 import EstadoEstantePanel from "@/components/notifications/EstadoEstantePanel";
 import TareasPanel from "@/components/notifications/TareasPanel";
+import PorRecibirPanel from "@/components/purchase/PorRecibirPanel";
 import Kpi from "@/components/reports/Kpi";
 import { bs, num, variacion } from "@/src/utils/report-format";
 
@@ -59,6 +60,8 @@ export default function DashboardPage() {
         {[1, 2].includes(rol) && <EstadoEstantePanel />}
 
         <TareasPanel />
+
+        {[1, 3, 5].includes(rol) && <PorRecibirPanel />}
 
         {(veVentas || veInventario) && (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">

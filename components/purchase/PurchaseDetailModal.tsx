@@ -1,9 +1,16 @@
 "use client";
-import { Chip } from "@heroui/react";
+import { Button, Chip } from "@heroui/react";
 import { Icon } from "@iconify/react";
-import React from "react";
+import Link from "next/link";
+import React, { useState } from "react";
+import { toast } from "react-toastify";
 
+import { anularCompra } from "@/actions/purchase/void-purchase-action";
+import { useAuth } from "@/app/context/AuthContext";
+import AnularModal from "@/components/ui/AnularModal";
 import DetailModalLayout, { InfoTile, TotalRow } from "@/components/ui/DetailModalLayout";
+import { ESTADO_ANULADO, MOTIVOS_ANULACION_COMPRA, puedeAnularCompra } from "@/src/lib/anulaciones";
+import { ESTADO_COMPRA_POR_RECIBIR, puedeValidarRecepcion } from "@/src/lib/compras";
 import { formatVencimiento, getDiasParaVencer, getSeveridad } from "@/src/utils/expiry";
 import { formatShortDate } from "@/src/utils/period";
 
@@ -36,6 +43,10 @@ interface Purchase {
   descuento: number;
   total: number;
   estado: number;
+  /** Solo si la compra está anulada */
+  anulacion?: { motivo: string; usuario: string; fecha: string } | null;
+  /** true si ya se sacó mercadería de sus lotes al estante (o se ajustó): ya no se puede anular */
+  bloqueada?: boolean;
   detalles: PurchaseDetail[];
 }
 
@@ -43,19 +54,67 @@ interface PurchaseDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   purchase: Purchase | null;
+  /** Se llama cuando la compra se anuló, para que la lista se recargue */
+  onAnulada?: () => void;
 }
 
-export default function PurchaseDetailModal({ isOpen, onClose, purchase }: PurchaseDetailModalProps) {
+export default function PurchaseDetailModal({ isOpen, onClose, purchase, onAnulada }: PurchaseDetailModalProps) {
+  const { user } = useAuth();
+  const [anulando, setAnulando] = useState(false);
+
   if (!purchase) return null;
 
   const totalUnidades = purchase.detalles.reduce((sum, d) => sum + d.cantidad, 0);
+  const anulada = purchase.estado === ESTADO_ANULADO;
+  const porRecibir = purchase.estado === ESTADO_COMPRA_POR_RECIBIR;
+  const rolPuede = puedeAnularCompra(user?.rol);
+  const puedeAnular = !anulada && rolPuede && !purchase.bloqueada;
+
+  const confirmarAnulacion = async (motivo: string, comentario: string) => {
+    if (!user) return;
+    const r = await anularCompra({ compraId: purchase.id, motivo, comentario, usuarioId: user.id });
+
+    if (r.success) {
+      toast.success("Compra anulada: la mercadería salió del almacén.");
+      setAnulando(false);
+      onClose();
+      onAnulada?.();
+    } else {
+      toast.error(r.error);
+    }
+  };
 
   return (
+    <>
     <DetailModalLayout
       badge={
-        <Chip color="success" size="lg" variant="flat">
-          Bs. {purchase.total.toFixed(2)}
-        </Chip>
+        anulada ? (
+          <Chip color="danger" size="lg" variant="flat">
+            Anulada
+          </Chip>
+        ) : porRecibir ? (
+          <Chip color="warning" size="lg" variant="flat">
+            Por recibir
+          </Chip>
+        ) : (
+          <Chip color="success" size="lg" variant="flat">
+            Bs. {purchase.total.toFixed(2)}
+          </Chip>
+        )
+      }
+      footerExtra={
+        <>
+          {porRecibir && puedeValidarRecepcion(user?.rol) && (
+            <Button as={Link} color="success" href="/Dashboard/Purchase/Receipts" radius="lg" startContent={<Icon height="18" icon="heroicons:clipboard-document-check" width="18" />} variant="flat">
+              Validar recepción
+            </Button>
+          )}
+          {puedeAnular && (
+            <Button color="danger" radius="lg" startContent={<Icon height="18" icon="heroicons:no-symbol" width="18" />} variant="flat" onPress={() => setAnulando(true)}>
+              {porRecibir ? "Cancelar pedido" : "Anular compra"}
+            </Button>
+          )}
+        </>
       }
       icon="heroicons:shopping-cart"
       isOpen={isOpen}
@@ -63,6 +122,36 @@ export default function PurchaseDetailModal({ isOpen, onClose, purchase }: Purch
       title="Detalle de la compra"
       onClose={onClose}
     >
+      {anulada && (
+        <div className="rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm px-4 py-3">
+          <p className="font-semibold flex items-center gap-1.5">
+            <Icon height="16" icon="heroicons:no-symbol" width="16" />
+            Compra anulada
+          </p>
+          {purchase.anulacion ? (
+            <p className="mt-0.5">
+              {purchase.anulacion.motivo} · por {purchase.anulacion.usuario} el {formatShortDate(purchase.anulacion.fecha)}
+            </p>
+          ) : (
+            <p className="mt-0.5">No se muestra el motivo (falta el registro de anulaciones).</p>
+          )}
+          <p className="mt-0.5 text-red-700">No cuenta en los reportes y su mercadería ya no está en el almacén.</p>
+        </div>
+      )}
+      {porRecibir && (
+        <div className="rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm px-4 py-3">
+          <p className="font-semibold">Compra confirmada, por recibir</p>
+          <p className="mt-0.5">
+            La mercadería todavía no entró al almacén: el Gestor de Almacén debe validar lo que llegue (Compras › Recepciones). Hasta entonces no suma al stock ni a los reportes.
+          </p>
+        </div>
+      )}
+      {!anulada && rolPuede && purchase.bloqueada && (
+        <div className="rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm px-4 py-3">
+          Esta compra ya no se puede anular: de sus lotes ya se sacó mercadería al estante o se ajustó su stock.
+        </div>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <InfoTile icon="heroicons:building-storefront" label="Proveedor">
           {purchase.proveedor.nombre}
@@ -133,5 +222,17 @@ export default function PurchaseDetailModal({ isOpen, onClose, purchase }: Purch
         </div>
       </div>
     </DetailModalLayout>
+
+    <AnularModal
+      aviso="La compra y sus lotes dejan de contar: la mercadería sale del almacén y la compra deja de aparecer en los reportes. Solo es posible mientras no se haya sacado nada de esos lotes al estante. No se puede deshacer."
+      confirmText="Anular compra"
+      isOpen={anulando}
+      motivos={MOTIVOS_ANULACION_COMPRA}
+      subtitle={`${purchase.numeroCompra} · Bs. ${purchase.total.toFixed(2)}`}
+      title="Anular compra"
+      onClose={() => setAnulando(false)}
+      onConfirm={confirmarAnulacion}
+    />
+    </>
   );
 }

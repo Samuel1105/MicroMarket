@@ -2,6 +2,8 @@
 import { prisma } from "@/src/lib/prisma";
 import { cerrarAvisosResueltos } from "@/src/lib/notifications";
 import { getBoliviaTime } from "@/src/utils/date";
+import { carnetValido, MENSAJE_CARNET, normalizarCarnet } from "@/src/lib/carnet";
+import { MAX_DESCUENTO_SIN_ADMIN, puedeCambiarPrecio } from "@/src/lib/sales-rules";
 
 /** Fecha de hoy (Bolivia) como YYYY-MM-DD */
 function hoyBolivia() {
@@ -13,12 +15,19 @@ function estaVencido(fecha: Date | null | undefined) {
 }
 
 // ========== BÚSQUEDA DE CLIENTES ==========
-export async function searchClientByCarnet(carnet: string) {
+export async function searchClientByCarnet(carnetEscrito: string) {
   try {
+    const carnet = normalizarCarnet(carnetEscrito);
+
+    if (carnet !== "0" && !carnetValido(carnet)) {
+      return { success: false, data: null, exists: false, error: MENSAJE_CARNET };
+    }
+
+    // Se busca el carnet exacto o con complemento (quien escribe "6234517" encuentra a "6234517 CB")
     const cliente = await prisma.cliente.findFirst({
       where: {
-        carnet: carnet,
         estado: 1,
+        OR: [{ carnet }, { carnet: { startsWith: `${carnet} ` } }, { carnet: { startsWith: `${carnet}-` } }],
       },
       select: {
         id: true,
@@ -87,9 +96,15 @@ interface CreateClientData {
 
 export async function createClient(data: CreateClientData) {
   try {
+    const carnet = normalizarCarnet(data.carnet);
+
+    if (!carnetValido(carnet)) {
+      return { success: false, error: MENSAJE_CARNET };
+    }
+
     // Verificar si ya existe
     const existente = await prisma.cliente.findFirst({
-      where: { carnet: data.carnet },
+      where: { carnet },
     });
 
     if (existente) {
@@ -101,9 +116,9 @@ export async function createClient(data: CreateClientData) {
 
     const cliente = await prisma.cliente.create({
       data: {
-        carnet: data.carnet,
-        nombre: data.nombre,
-        correo: data.correo,
+        carnet,
+        nombre: data.nombre.trim(),
+        correo: data.correo.trim().toLowerCase(),
         estado: 1,
         fechaRegistro: getBoliviaTime(),
         usuarioIdRegistro: data.usuarioIdRegistro,
@@ -360,7 +375,7 @@ interface ProcessSaleRequest {
 export async function processSale(request: ProcessSaleRequest) {
   try {
     // Validaciones
-    if (!request.clienteId || request.detalles.length === 0) {
+    if (request.clienteId == null || !(request.detalles?.length > 0)) {
       return {
         success: false,
         error: 'Datos de venta incompletos',
@@ -372,6 +387,20 @@ export async function processSale(request: ProcessSaleRequest) {
         success: false,
         error: 'El monto recibido es menor al total',
       };
+    }
+
+    // Quién vende: el precio y el descuento se controlan según su rol (no se confía en la pantalla)
+    const vendedor = await prisma.persona.findFirst({ where: { id: request.usuarioId, estado: 1 }, select: { rol: true } });
+
+    if (!vendedor) {
+      return { success: false, error: 'Usuario no válido: vuelve a iniciar sesión' };
+    }
+
+    // Los totales deben cuadrar con las líneas (evita totales manipulados)
+    const sumaLineas = request.detalles.reduce((s, d) => s + d.total, 0);
+
+    if (Math.abs(sumaLineas - request.total) > 0.05) {
+      return { success: false, error: 'El total no coincide con el detalle de la venta. Revisa los productos e inténtalo de nuevo.' };
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -393,6 +422,12 @@ export async function processSale(request: ProcessSaleRequest) {
         },
       });
 
+      // El número definitivo lo da el servidor con el id de la venta: así nunca se repite
+      const numeroDefinitivo = `VENTA-${getBoliviaTime().toISOString().slice(0, 10).replace(/-/g, "")}-${String(venta.id).padStart(6, "0")}`;
+
+      await tx.venta.update({ where: { id: venta.id }, data: { numeroVenta: numeroDefinitivo } });
+      venta.numeroVenta = numeroDefinitivo;
+
       let detallesCreados = 0;
       let codigosActualizados = 0;
       let stocksActualizados = 0;
@@ -410,6 +445,15 @@ export async function processSale(request: ProcessSaleRequest) {
 
         if (estaVencido(stockVenta.fechaVencimiento)) {
           throw new Error('Hay un producto vencido en la venta: retíralo del carrito');
+        }
+
+        if (!puedeCambiarPrecio(vendedor.rol)) {
+          if (Math.abs(Number(stockVenta.precioVenta) - detalle.precioUnitario) > 0.005) {
+            throw new Error('Solo el administrador puede cambiar el precio de venta.');
+          }
+          if ((detalle.descuento ?? 0) > detalle.subtotal * MAX_DESCUENTO_SIN_ADMIN + 0.01) {
+            throw new Error(`El descuento máximo sin ser administrador es del ${MAX_DESCUENTO_SIN_ADMIN * 100}% por producto.`);
+          }
         }
 
         if (Number(stockVenta.cantidadDisponible) < detalle.cantidadVendida) {

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ListProduct } from "@/actions/products/list-productInfo-action";
+import { useAuth } from "@/app/context/AuthContext";
 import CardMobileProduct from "@/components/product/CardMobileProduct";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Breadcrumbs from "@/components/ui/Breadcrumbs";
@@ -25,6 +26,9 @@ export default function ListProductView() {
   const [stock, setStock] = useState("todos");
 
   const router = useRouter();
+  const { hasRole } = useAuth();
+  // Administrador y Almacén administran el catálogo; el Cajero solo lo consulta
+  const puedeEditar = hasRole([1, 3]);
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -120,14 +124,14 @@ export default function ListProductView() {
     setter((Array.from(keys)[0] as string) || fallback);
 
   return (
-    <ProtectedRoute allowedRoles={[1, 3]}>
+    <ProtectedRoute allowedRoles={[1, 2, 3]}>
       <div className="p-4 md:p-8 space-y-5">
-        <Breadcrumbs items={[{ label: "Productos" }, { label: "Lista" }]} />
+        <Breadcrumbs items={[{ label: "Productos" }, { label: puedeEditar ? "Lista" : "Catálogo" }]} />
 
         <ListHeaderCard
-          actionLabel="Registrar Producto"
+          actionLabel={puedeEditar ? "Registrar Producto" : undefined}
           activeFilters={activeFilters}
-          description="Administra el catálogo de productos"
+          description={puedeEditar ? "Administra el catálogo de productos" : "Consulta el catálogo de productos"}
           filters={
             <>
               <Select
@@ -199,6 +203,7 @@ export default function ListProductView() {
             <CardMobileProduct
               handleDeleteSuccess={handleDeleteSuccess}
               items={items}
+              soloLectura={!puedeEditar}
             />
           </div>
         )}

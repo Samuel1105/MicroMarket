@@ -1,8 +1,15 @@
 "use client";
-import { Chip } from "@heroui/react";
+import { Button, Chip } from "@heroui/react";
 import { Icon } from "@iconify/react";
+import React, { useState } from "react";
+import { toast } from "react-toastify";
 
+import { anularVenta } from "@/actions/sales/void-sale-action";
+import { useAuth } from "@/app/context/AuthContext";
+import AnularModal from "@/components/ui/AnularModal";
 import DetailModalLayout, { InfoTile, TotalRow } from "@/components/ui/DetailModalLayout";
+import { ESTADO_ANULADO, MOTIVOS_ANULACION_VENTA, puedeAnularVenta } from "@/src/lib/anulaciones";
+import { hoyBolivia } from "@/src/utils/date";
 import { formatShortDate, formatTime } from "@/src/utils/period";
 
 export interface DetalleVenta {
@@ -38,6 +45,10 @@ export interface Venta {
   cambio: number;
   metodoPago: number;
   estado: number;
+  /** Quién registró la venta */
+  usuarioRegistro?: number;
+  /** Solo si la venta está anulada */
+  anulacion?: { motivo: string; usuario: string; fecha: string } | null;
   detalles: DetalleVenta[];
 }
 
@@ -55,20 +66,61 @@ export default function SaleDetailModal({
   venta,
   isOpen,
   onClose,
+  onAnulada,
 }: {
   venta: Venta | null;
   isOpen: boolean;
   onClose: () => void;
+  /** Se llama cuando la venta se anuló, para que la lista se recargue */
+  onAnulada?: () => void;
 }) {
+  const { user } = useAuth();
+  const [anulando, setAnulando] = useState(false);
+
   if (!venta) return null;
   const pago = getMetodoPago(venta.metodoPago);
+  const anulada = venta.estado === ESTADO_ANULADO;
+  const puedeAnular =
+    !anulada &&
+    puedeAnularVenta(user?.rol, {
+      esSuya: venta.usuarioRegistro === user?.id,
+      esDeHoy: venta.fecha.slice(0, 10) === hoyBolivia(),
+    });
+
+  const confirmarAnulacion = async (motivo: string, comentario: string) => {
+    if (!user) return;
+    const r = await anularVenta({ ventaId: venta.id, motivo, comentario, usuarioId: user.id });
+
+    if (r.success) {
+      toast.success("Venta anulada: el producto volvió al estante.");
+      setAnulando(false);
+      onClose();
+      onAnulada?.();
+    } else {
+      toast.error(r.error);
+    }
+  };
 
   return (
+    <>
     <DetailModalLayout
       badge={
-        <Chip color="success" size="lg" variant="flat">
-          Bs. {venta.total.toFixed(2)}
-        </Chip>
+        anulada ? (
+          <Chip color="danger" size="lg" variant="flat">
+            Anulada
+          </Chip>
+        ) : (
+          <Chip color="success" size="lg" variant="flat">
+            Bs. {venta.total.toFixed(2)}
+          </Chip>
+        )
+      }
+      footerExtra={
+        puedeAnular ? (
+          <Button color="danger" radius="lg" startContent={<Icon height="18" icon="heroicons:no-symbol" width="18" />} variant="flat" onPress={() => setAnulando(true)}>
+            Anular venta
+          </Button>
+        ) : undefined
       }
       icon="mdi:receipt-text-outline"
       isOpen={isOpen}
@@ -76,6 +128,23 @@ export default function SaleDetailModal({
       title="Detalle de la venta"
       onClose={onClose}
     >
+      {anulada && (
+        <div className="rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm px-4 py-3">
+          <p className="font-semibold flex items-center gap-1.5">
+            <Icon height="16" icon="heroicons:no-symbol" width="16" />
+            Venta anulada
+          </p>
+          {venta.anulacion ? (
+            <p className="mt-0.5">
+              {venta.anulacion.motivo} · por {venta.anulacion.usuario} el {formatShortDate(venta.anulacion.fecha)}, {formatTime(venta.anulacion.fecha)}
+            </p>
+          ) : (
+            <p className="mt-0.5">No se muestra el motivo (falta el registro de anulaciones).</p>
+          )}
+          <p className="mt-0.5 text-red-700">No cuenta en los reportes y el producto volvió al estante.</p>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <InfoTile icon="heroicons:user" label="Cliente">
           {venta.cliente.nombre}
@@ -144,5 +213,17 @@ export default function SaleDetailModal({
         <TotalRow label="Cambio devuelto" value={`Bs. ${venta.cambio.toFixed(2)}`} />
       </div>
     </DetailModalLayout>
+
+    <AnularModal
+      aviso="El producto vuelve al estante, el código de barras (si se escaneó) vuelve a estar disponible y la venta deja de contar en los reportes. No se puede deshacer."
+      confirmText="Anular venta"
+      isOpen={anulando}
+      motivos={MOTIVOS_ANULACION_VENTA}
+      subtitle={`${venta.numeroVenta} · Bs. ${venta.total.toFixed(2)}`}
+      title="Anular venta"
+      onClose={() => setAnulando(false)}
+      onConfirm={confirmarAnulacion}
+    />
+    </>
   );
 }

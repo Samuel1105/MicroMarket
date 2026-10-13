@@ -280,3 +280,15 @@ model SolicitudCompraDetalle {
   SolicitudCompra SolicitudCompra @relation(fields: [solicitudID], references: [id], onUpdate: NoAction, map: "FK_SolicitudDetalle_Solicitud")
   Producto        Producto        @relation(fields: [productoID], references: [id], onUpdate: NoAction, map: "FK_SolicitudDetalle_Producto")
 }
+
+/// Registro de anulaciones: tipo 1 = venta, 2 = compra (quién, cuándo y por qué)
+model Anulacion {
+  id           Int      @id(map: "PK_Anulacion") @default(autoincrement())
+  tipo         Int      @db.TinyInt
+  referenciaID Int
+  motivo       String   @db.NVarChar(200)
+  usuarioID    Int      @db.TinyInt
+  fecha        DateTime @db.DateTime
+
+  @@index([tipo, referenciaID], map: "IX_Anulacion_tipo_ref")
+}

@@ -2,6 +2,7 @@
 import { prisma } from "@/src/lib/prisma";
 import { cerrarAvisosResueltos } from "@/src/lib/notifications";
 import { getBoliviaTime } from "@/src/utils/date";
+import { ESTADO_COMPRA_POR_RECIBIR } from "@/src/lib/compras";
 import { CreatePurchaseRequest } from "@/src/schema/SchemaPurchase";
 
 interface PurchaseResponse {
@@ -40,7 +41,8 @@ export async function createPurchaseAction(
           descuento: purchaseData.descuento || 0,
           total: purchaseData.total,
           usuarioIdRegistro: purchaseData.usuarioIdRegistro,
-          estado: 1,
+          // Paso 1 de 2: la compra queda "por recibir" hasta que Almacén valide lo que llegó
+          estado: ESTADO_COMPRA_POR_RECIBIR,
           fechaRegistro: getBoliviaTime(),
         },
       });
@@ -67,38 +69,21 @@ export async function createPurchaseAction(
         });
         detallesCreados++;
 
-        // 2.2 CREAR LOTE
-        const lote = await tx.lote.create({
+        // 2.2 LOTE PREVISTO (por recibir): todavía no cuenta como stock. Almacén lo activa al validar la
+        // recepción (ahí se crea también el movimiento de ingreso).
+        await tx.lote.create({
           data: {
             numeroLote: detalle.lote.numeroLote,
             productoID: detalle.lote.productoID,
             detalleCompraID: detalleCompra.id,
             fechaVencimiento: detalle.lote.fechaVencimiento,
             cantidadInicialUnidadesBase: detalle.lote.cantidadInicialUnidadesBase,
-            estado: 1,
+            estado: ESTADO_COMPRA_POR_RECIBIR,
             fechaRegistro: getBoliviaTime(),
             usuarioIdRegistro: detalle.lote.usuarioIdRegistro,
           },
         });
         lotesCreados++;
-
-        // 2.3 CREAR MOVIMIENTO DE ALMACÉN (INGRESO)
-        await tx.movimientoAlmacen.create({
-          data: {
-            tipoMovimiento: 1, // 1 = INGRESO
-            productoID: detalle.productoID,
-            loteID: lote.id,
-            unidadMedidaID: detalle.unidadMedidaID,
-            cantidad: detalle.cantidadComprada,
-            cantidadUnidadesBase: detalle.lote.cantidadInicialUnidadesBase,
-            referenciaID: compra.id, // Referencia a la compra
-            tipoReferencia: 1, // 1 = COMPRA
-            observaciones: `Ingreso por compra ${compra.numeroCompra}`,
-            fechaRegistro: getBoliviaTime(),
-            usuarioIdRegistro: purchaseData.usuarioIdRegistro,
-          },
-        });
-        movimientosCreados++;
 
         // // 2.4 CREAR/ACTUALIZAR STOCK DE VENTA
         // // Buscar si ya existe stock para este producto, lote y unidad

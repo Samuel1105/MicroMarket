@@ -1,6 +1,7 @@
 import { EventEmitter } from "events";
 
 import { prisma } from "@/src/lib/prisma";
+import { enAlmacenDelLote, MOV_DEL_LOTE } from "@/src/lib/stock-almacen";
 import { getBoliviaTime } from "@/src/utils/date";
 
 /**
@@ -67,7 +68,7 @@ export async function stockDeProducto(productoID: number) {
       where: { productoID, estado: 1, OR: [{ fechaVencimiento: null }, { fechaVencimiento: { gte: inicioHoy } }] },
       select: {
         cantidadInicialUnidadesBase: true,
-        MovimientoAlmacen: { where: { tipoMovimiento: 2 }, select: { cantidadUnidadesBase: true } },
+        MovimientoAlmacen: { where: MOV_DEL_LOTE, select: { tipoMovimiento: true, cantidadUnidadesBase: true } },
       },
     }),
   ]);
@@ -76,8 +77,7 @@ export async function stockDeProducto(productoID: number) {
 
   const estante = estantes.reduce((s, e) => s + num(e.cantidadUnidadesBase), 0);
   const almacen = lotes.reduce(
-    (s, l) =>
-      s + Math.max(num(l.cantidadInicialUnidadesBase) - l.MovimientoAlmacen.reduce((t, m) => t + num(m.cantidadUnidadesBase), 0), 0),
+    (s, l) => s + Math.max(enAlmacenDelLote(l.cantidadInicialUnidadesBase, l.MovimientoAlmacen), 0),
     0,
   );
 

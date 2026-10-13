@@ -12,6 +12,7 @@ import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import ListHeaderCard from '@/components/ui/ListHeaderCard';
 import StatCard from '@/components/ui/StatCard';
 import DateRangeFilter from '@/components/ui/DateRangeFilter';
+import { ESTADO_ANULADO } from '@/src/lib/anulaciones';
 import { formatShortDate, formatTime, inDateRange, inPeriod, Period, PERIOD_OPTIONS } from '@/src/utils/period';
 
 const ROWS_PER_PAGE = 10;
@@ -27,6 +28,7 @@ export default function SalesHistoryView() {
 
   const [search, setSearch] = useState('');
   const [pago, setPago] = useState('todos');
+  const [estadoFiltro, setEstadoFiltro] = useState('todos');
   const [periodo, setPeriodo] = useState<Period>('todo');
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
@@ -34,23 +36,25 @@ export default function SalesHistoryView() {
   const hayRango = Boolean(desde || hasta);
   const [page, setPage] = useState(1);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const result = await getSalesHistory();
+  const cargarVentas = async () => {
+    try {
+      const result = await getSalesHistory();
 
-        if (result.success && result.data) setVentas(result.data);
-      } catch (error) {
-        console.error('Error al cargar ventas:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    })();
+      if (result.success && result.data) setVentas(result.data);
+    } catch (error) {
+      console.error('Error al cargar ventas:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    cargarVentas();
   }, []);
 
   useEffect(() => {
     setPage(1);
-  }, [search, pago, periodo, desde, hasta]);
+  }, [search, pago, estadoFiltro, periodo, desde, hasta]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -64,15 +68,21 @@ export default function SalesHistoryView() {
       )
         return false;
       if (pago !== 'todos' && String(v.metodoPago) !== pago) return false;
+      if (estadoFiltro === 'vigentes' && v.estado === ESTADO_ANULADO) return false;
+      if (estadoFiltro === 'anuladas' && v.estado !== ESTADO_ANULADO) return false;
       if (hayRango ? !inDateRange(v.fecha, desde, hasta) : !inPeriod(v.fecha, periodo)) return false;
 
       return true;
     });
-  }, [ventas, search, pago, periodo, desde, hasta, hayRango]);
+  }, [ventas, search, pago, estadoFiltro, periodo, desde, hasta, hayRango]);
+
+  // Los totales solo cuentan las ventas vigentes (las anuladas no suman)
+  const vigentes = useMemo(() => filtered.filter((v) => v.estado !== ESTADO_ANULADO), [filtered]);
+  const anuladas = filtered.length - vigentes.length;
 
   const pages = Math.max(1, Math.ceil(filtered.length / ROWS_PER_PAGE));
   const pageItems = filtered.slice((page - 1) * ROWS_PER_PAGE, page * ROWS_PER_PAGE);
-  const activeFilters = (pago !== 'todos' ? 1 : 0) + (hayRango ? 1 : periodo !== 'todo' ? 1 : 0);
+  const activeFilters = (pago !== 'todos' ? 1 : 0) + (estadoFiltro !== 'todos' ? 1 : 0) + (hayRango ? 1 : periodo !== 'todo' ? 1 : 0);
 
   const openDetails = (venta: Venta) => {
     setSelectedVenta(venta);
@@ -90,6 +100,16 @@ export default function SalesHistoryView() {
           description="Consulta las ventas registradas"
           filters={
             <>
+              <Select
+                disallowEmptySelection
+                label="Estado"
+                selectedKeys={[estadoFiltro]}
+                onSelectionChange={(k) => setEstadoFiltro((Array.from(k)[0] as string) || 'todos')}
+              >
+                <SelectItem key="todos">Todas</SelectItem>
+                <SelectItem key="vigentes">Vigentes</SelectItem>
+                <SelectItem key="anuladas">Anuladas</SelectItem>
+              </Select>
               <Select
                 disallowEmptySelection
                 label="Forma de pago"
@@ -122,7 +142,7 @@ export default function SalesHistoryView() {
               />
             </>
           }
-          filtersCols={3}
+          filtersCols={4}
           search={search}
           searchPlaceholder="Buscar por número de venta, cliente o carnet..."
           title="Historial de ventas"
@@ -130,6 +150,7 @@ export default function SalesHistoryView() {
           onClearFilters={() => {
             setSearch('');
             setPago('todos');
+            setEstadoFiltro('todos');
             setPeriodo('todo');
             setDesde('');
             setHasta('');
@@ -138,20 +159,21 @@ export default function SalesHistoryView() {
           onSearchChange={setSearch}
         />
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <StatCard icon="mdi:receipt-text-outline" label="Ventas" tone="primary" value={filtered.length} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <StatCard icon="mdi:receipt-text-outline" label="Ventas" tone="primary" value={vigentes.length} />
           <StatCard
             icon="heroicons:banknotes"
             label="Monto vendido"
             tone="success"
-            value={`Bs. ${filtered.reduce((s, v) => s + v.total, 0).toFixed(2)}`}
+            value={`Bs. ${vigentes.reduce((s, v) => s + v.total, 0).toFixed(2)}`}
           />
           <StatCard
             icon="heroicons:tag"
             label="Descuentos otorgados"
             tone="danger"
-            value={`Bs. ${filtered.reduce((s, v) => s + v.descuento, 0).toFixed(2)}`}
+            value={`Bs. ${vigentes.reduce((s, v) => s + v.descuento, 0).toFixed(2)}`}
           />
+          <StatCard hint="No suman en los totales" icon="heroicons:no-symbol" label="Anuladas" tone="neutral" value={anuladas} />
         </div>
 
         {isLoading ? (
@@ -170,11 +192,12 @@ export default function SalesHistoryView() {
           <div className="space-y-3">
             {pageItems.map((venta) => {
               const metodo = getMetodoPago(venta.metodoPago);
+              const anulada = venta.estado === ESTADO_ANULADO;
 
               return (
                 <div
                   key={venta.id}
-                  className="rounded-2xl border border-default-200 bg-white shadow-sm hover:shadow-md hover:border-primary-200 transition-all p-4 sm:p-5"
+                  className={`rounded-2xl border border-default-200 bg-white shadow-sm hover:shadow-md hover:border-primary-200 transition-all p-4 sm:p-5 ${anulada ? 'opacity-60 bg-default-50' : ''}`}
                 >
                   <div className="flex flex-col md:flex-row md:items-center gap-4">
                     <div className="flex items-center gap-3 md:w-64 shrink-0">
@@ -182,7 +205,14 @@ export default function SalesHistoryView() {
                         <Icon height="22" icon="mdi:receipt-text-outline" width="22" />
                       </div>
                       <div className="min-w-0">
-                        <p className="font-semibold text-sm">{venta.numeroVenta}</p>
+                        <p className="font-semibold text-sm flex items-center gap-2">
+                          {venta.numeroVenta}
+                          {anulada && (
+                            <Chip color="danger" size="sm" variant="flat">
+                              Anulada
+                            </Chip>
+                          )}
+                        </p>
                         <p className="text-xs text-gray-500">
                           {formatShortDate(venta.fecha)} · {formatTime(venta.fecha)}
                         </p>
@@ -209,7 +239,7 @@ export default function SalesHistoryView() {
                       </div>
                       <div>
                         <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-0.5">Total</p>
-                        <p className="font-bold text-primary-700">Bs. {venta.total.toFixed(2)}</p>
+                        <p className={`font-bold ${anulada ? 'text-gray-400 line-through' : 'text-primary-700'}`}>Bs. {venta.total.toFixed(2)}</p>
                       </div>
                     </div>
 
@@ -240,7 +270,7 @@ export default function SalesHistoryView() {
         )}
       </div>
 
-      <SaleDetailModal isOpen={isOpen} venta={selectedVenta} onClose={() => setIsOpen(false)} />
+      <SaleDetailModal isOpen={isOpen} venta={selectedVenta} onAnulada={cargarVentas} onClose={() => setIsOpen(false)} />
     </ProtectedRoute>
   );
 }

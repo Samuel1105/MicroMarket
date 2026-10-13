@@ -1,11 +1,15 @@
 "use server";
+import { ANULACION_COMPRA, ESTADO_ACTIVO, ESTADO_ANULADO } from "@/src/lib/anulaciones";
+import { cargarAnulaciones } from "@/src/lib/anulaciones-datos";
+import { ESTADO_COMPRA_POR_RECIBIR } from "@/src/lib/compras";
 import { prisma } from "@/src/lib/prisma";
+import { MOV_AJUSTE_ALMACEN, MOV_AJUSTE_ESTANTE, MOV_SALIDA_ESTANTE } from "@/src/lib/stock-almacen";
 
 export async function getPurchaseHistory() {
   try {
     const compras = await prisma.compra.findMany({
       where: {
-        estado: 1, // Solo compras activas
+        estado: { in: [ESTADO_ACTIVO, ESTADO_ANULADO, ESTADO_COMPRA_POR_RECIBIR] }, // recibidas, anuladas y por recibir
       },
       select: {
         id: true,
@@ -22,9 +26,6 @@ export async function getPurchaseHistory() {
           },
         },
         DetalleCompra: {
-          where: {
-            estado: 1,
-          },
           select: {
             id: true,
             cantidadComprada: true,
@@ -46,14 +47,17 @@ export async function getPurchaseHistory() {
               },
             },
             Lote: {
-              where: {
-                estado: 1,
-              },
               select: {
                 id: true,
                 numeroLote: true,
                 fechaVencimiento: true,
                 cantidadInicialUnidadesBase: true,
+                // ¿Ya se sacó algo de este lote al estante o se ajustó? Entonces la compra ya no se puede anular
+                MovimientoAlmacen: {
+                  where: { tipoMovimiento: { in: [MOV_SALIDA_ESTANTE, MOV_AJUSTE_ALMACEN, MOV_AJUSTE_ESTANTE] } },
+                  select: { id: true },
+                  take: 1,
+                },
               },
             },
           },
@@ -64,9 +68,13 @@ export async function getPurchaseHistory() {
       },
     });
 
+    const anulaciones = await cargarAnulaciones(ANULACION_COMPRA, compras.filter(c => c.estado === ESTADO_ANULADO).map(c => c.id));
+
     // Transformar los datos para una estructura más limpia
     const comprasTransformadas = compras.map(compra => ({
       id: compra.id,
+      anulacion: anulaciones.get(compra.id) ?? null,
+      bloqueada: compra.DetalleCompra.some(d => d.Lote.some(l => l.MovimientoAlmacen.length > 0)),
       numeroCompra: compra.numeroCompra || 'SIN NÚMERO',
       fecha: compra.fechaRegistro?.toISOString().split('T')[0] || '',
       proveedor: {

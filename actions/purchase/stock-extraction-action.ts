@@ -2,6 +2,7 @@
 import { prisma } from "@/src/lib/prisma";
 import { cerrarAvisosResueltos } from "@/src/lib/notifications";
 import { getBoliviaTime } from "@/src/utils/date";
+import { enAlmacenDelLote, MOV_DEL_LOTE, resumenMovimientosLote } from "@/src/lib/stock-almacen";
 
 // Obtener productos disponibles en el almacén (de las compras)
 export async function getAvailableStockForExtraction() {
@@ -62,13 +63,12 @@ export async function getAvailableStockForExtraction() {
             }
           }
         },
-        // Cantidad ya extraída: se calcula con los movimientos de salida del lote,
-        // que no cambian cuando el producto se vende desde el estante
+        // Lo que queda en el almacén se calcula con los movimientos del lote (salidas al estante
+        // y ajustes), que no cambian cuando el producto se vende desde el estante
         MovimientoAlmacen: {
-          where: {
-            tipoMovimiento: 2,
-          },
+          where: MOV_DEL_LOTE,
           select: {
+            tipoMovimiento: true,
             cantidadUnidadesBase: true,
           }
         }
@@ -82,11 +82,8 @@ export async function getAvailableStockForExtraction() {
 
     // Transformar datos
     const stockDisponible = lotes.map(lote => {
-      const cantidadExtraida = lote.MovimientoAlmacen.reduce(
-        (sum, mov) => sum + Number(mov.cantidadUnidadesBase),
-        0
-      );
-      const cantidadDisponible = Number(lote.cantidadInicialUnidadesBase) - cantidadExtraida;
+      const cantidadExtraida = resumenMovimientosLote(lote.MovimientoAlmacen).salidas;
+      const cantidadDisponible = enAlmacenDelLote(lote.cantidadInicialUnidadesBase, lote.MovimientoAlmacen);
 
       return {
         loteId: lote.id,
@@ -185,8 +182,8 @@ export async function extractStockForSale(request: ExtractStockRequest) {
           where: { id: item.loteId },
           include: {
             MovimientoAlmacen: {
-              where: { tipoMovimiento: 2 },
-              select: { cantidadUnidadesBase: true }
+              where: MOV_DEL_LOTE,
+              select: { tipoMovimiento: true, cantidadUnidadesBase: true }
             }
           }
         });
@@ -207,11 +204,7 @@ export async function extractStockForSale(request: ExtractStockRequest) {
           }
         }
 
-        const cantidadExtraida = lote.MovimientoAlmacen.reduce(
-          (sum, mov) => sum + Number(mov.cantidadUnidadesBase),
-          0
-        );
-        const disponible = Number(lote.cantidadInicialUnidadesBase) - cantidadExtraida;
+        const disponible = enAlmacenDelLote(lote.cantidadInicialUnidadesBase, lote.MovimientoAlmacen);
 
         if (disponible < item.cantidadUnidadesBase) {
           throw new Error(

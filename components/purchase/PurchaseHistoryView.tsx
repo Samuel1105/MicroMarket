@@ -9,6 +9,8 @@ import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import ListHeaderCard from '@/components/ui/ListHeaderCard';
 import StatCard from '@/components/ui/StatCard';
 import DateRangeFilter from '@/components/ui/DateRangeFilter';
+import { ESTADO_ANULADO } from '@/src/lib/anulaciones';
+import { ESTADO_COMPRA_POR_RECIBIR } from '@/src/lib/compras';
 import { formatShortDate, inDateRange, inPeriod, Period, PERIOD_OPTIONS } from '@/src/utils/period';
 
 import PurchaseDetailModal from './PurchaseDetailModal';
@@ -42,6 +44,8 @@ interface Purchase {
   descuento: number;
   total: number;
   estado: number;
+  anulacion?: { motivo: string; usuario: string; fecha: string } | null;
+  bloqueada?: boolean;
   detalles: PurchaseDetail[];
 }
 
@@ -57,6 +61,7 @@ export default function PurchaseHistoryView() {
 
   const [search, setSearch] = useState('');
   const [proveedor, setProveedor] = useState('todos');
+  const [estadoFiltro, setEstadoFiltro] = useState('todos');
   const [periodo, setPeriodo] = useState<Period>('todo');
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
@@ -64,23 +69,25 @@ export default function PurchaseHistoryView() {
   const hayRango = Boolean(desde || hasta);
   const [page, setPage] = useState(1);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const result = await getPurchaseHistory();
+  const cargarCompras = async () => {
+    try {
+      const result = await getPurchaseHistory();
 
-        if (result.success && result.data) setPurchases(result.data);
-      } catch (error) {
-        console.error('Error al cargar compras:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    })();
+      if (result.success && result.data) setPurchases(result.data);
+    } catch (error) {
+      console.error('Error al cargar compras:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    cargarCompras();
   }, []);
 
   useEffect(() => {
     setPage(1);
-  }, [search, proveedor, periodo, desde, hasta]);
+  }, [search, proveedor, estadoFiltro, periodo, desde, hasta]);
 
   const proveedores = useMemo(
     () => Array.from(new Set(purchases.map((p) => p.proveedor.nombre))).sort(),
@@ -99,15 +106,23 @@ export default function PurchaseHistoryView() {
       )
         return false;
       if (proveedor !== 'todos' && p.proveedor.nombre !== proveedor) return false;
+      if (estadoFiltro === 'vigentes' && p.estado !== 1) return false;
+      if (estadoFiltro === 'porrecibir' && p.estado !== ESTADO_COMPRA_POR_RECIBIR) return false;
+      if (estadoFiltro === 'anuladas' && p.estado !== ESTADO_ANULADO) return false;
       if (hayRango ? !inDateRange(p.fecha, desde, hasta) : !inPeriod(p.fecha, periodo)) return false;
 
       return true;
     });
-  }, [purchases, search, proveedor, periodo, desde, hasta, hayRango]);
+  }, [purchases, search, proveedor, estadoFiltro, periodo, desde, hasta, hayRango]);
+
+  // Los totales solo cuentan las compras recibidas (las anuladas y las que aún no llegaron no suman)
+  const vigentes = useMemo(() => filtered.filter((p) => p.estado === 1), [filtered]);
+  const anuladas = filtered.filter((p) => p.estado === ESTADO_ANULADO).length;
+  const porRecibir = filtered.filter((p) => p.estado === ESTADO_COMPRA_POR_RECIBIR).length;
 
   const pages = Math.max(1, Math.ceil(filtered.length / ROWS_PER_PAGE));
   const pageItems = filtered.slice((page - 1) * ROWS_PER_PAGE, page * ROWS_PER_PAGE);
-  const activeFilters = (proveedor !== 'todos' ? 1 : 0) + (hayRango ? 1 : periodo !== 'todo' ? 1 : 0);
+  const activeFilters = (proveedor !== 'todos' ? 1 : 0) + (estadoFiltro !== 'todos' ? 1 : 0) + (hayRango ? 1 : periodo !== 'todo' ? 1 : 0);
 
   const getTotalItems = (purchase: Purchase) =>
     purchase.detalles.reduce((sum, detail) => sum + detail.cantidad, 0);
@@ -139,6 +154,17 @@ export default function PurchaseHistoryView() {
               ]}
             </Select>
             <Select
+              disallowEmptySelection
+              label="Estado"
+              selectedKeys={[estadoFiltro]}
+              onSelectionChange={(k) => setEstadoFiltro((Array.from(k)[0] as string) || 'todos')}
+            >
+              <SelectItem key="todos">Todas</SelectItem>
+              <SelectItem key="vigentes">Recibidas</SelectItem>
+              <SelectItem key="porrecibir">Por recibir</SelectItem>
+              <SelectItem key="anuladas">Anuladas</SelectItem>
+            </Select>
+            <Select
               description={hayRango ? 'Usando el rango de fechas' : undefined}
               disallowEmptySelection
               isDisabled={hayRango}
@@ -159,7 +185,7 @@ export default function PurchaseHistoryView() {
             />
           </>
         }
-        filtersCols={3}
+        filtersCols={4}
         search={search}
         searchPlaceholder="Buscar por número, proveedor o producto..."
         title="Historial de compras"
@@ -167,6 +193,7 @@ export default function PurchaseHistoryView() {
         onClearFilters={() => {
           setSearch('');
           setProveedor('todos');
+          setEstadoFiltro('todos');
           setPeriodo('todo');
           setDesde('');
           setHasta('');
@@ -175,20 +202,22 @@ export default function PurchaseHistoryView() {
         onSearchChange={setSearch}
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard icon="heroicons:shopping-cart" label="Compras" tone="primary" value={filtered.length} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+        <StatCard icon="heroicons:shopping-cart" label="Compras recibidas" tone="primary" value={vigentes.length} />
+        <StatCard hint="Esperan validación en el almacén" icon="heroicons:clock" label="Por recibir" tone="warning" value={porRecibir} />
         <StatCard
           icon="heroicons:banknotes"
           label="Monto comprado"
           tone="success"
-          value={`Bs. ${filtered.reduce((s, p) => s + p.total, 0).toFixed(2)}`}
+          value={`Bs. ${vigentes.reduce((s, p) => s + p.total, 0).toFixed(2)}`}
         />
         <StatCard
           icon="heroicons:tag"
           label="Descuentos obtenidos"
           tone="secondary"
-          value={`Bs. ${filtered.reduce((s, p) => s + p.descuento, 0).toFixed(2)}`}
+          value={`Bs. ${vigentes.reduce((s, p) => s + p.descuento, 0).toFixed(2)}`}
         />
+        <StatCard hint="No suman en los totales" icon="heroicons:no-symbol" label="Anuladas" tone="neutral" value={anuladas} />
       </div>
 
       {isLoading ? (
@@ -210,7 +239,7 @@ export default function PurchaseHistoryView() {
           {pageItems.map((purchase) => (
             <div
               key={purchase.id}
-              className="rounded-2xl border border-default-200 bg-white shadow-sm hover:shadow-md hover:border-primary-200 transition-all p-4 sm:p-5"
+              className={`rounded-2xl border border-default-200 bg-white shadow-sm hover:shadow-md hover:border-primary-200 transition-all p-4 sm:p-5 ${purchase.estado === ESTADO_ANULADO ? 'opacity-60 bg-default-50' : ''}`}
             >
               <div className="flex flex-col md:flex-row md:items-center gap-4">
                 <div className="flex items-center gap-3 md:w-64 shrink-0">
@@ -218,7 +247,19 @@ export default function PurchaseHistoryView() {
                     <Icon height="22" icon="heroicons:shopping-cart" width="22" />
                   </div>
                   <div className="min-w-0">
-                    <p className="font-semibold text-sm">{purchase.numeroCompra}</p>
+                    <p className="font-semibold text-sm flex items-center gap-2">
+                      {purchase.numeroCompra}
+                      {purchase.estado === ESTADO_ANULADO && (
+                        <Chip color="danger" size="sm" variant="flat">
+                          Anulada
+                        </Chip>
+                      )}
+                      {purchase.estado === ESTADO_COMPRA_POR_RECIBIR && (
+                        <Chip color="warning" size="sm" variant="flat">
+                          Por recibir
+                        </Chip>
+                      )}
+                    </p>
                     <p className="text-xs text-gray-500">{formatShortDate(purchase.fecha)}</p>
                   </div>
                 </div>
@@ -244,7 +285,7 @@ export default function PurchaseHistoryView() {
                   </div>
                   <div>
                     <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-0.5">Total</p>
-                    <p className="font-bold text-primary-700">Bs. {purchase.total.toFixed(2)}</p>
+                    <p className={`font-bold ${purchase.estado === ESTADO_ANULADO ? 'text-gray-400 line-through' : 'text-primary-700'}`}>Bs. {purchase.total.toFixed(2)}</p>
                   </div>
                 </div>
 
@@ -273,7 +314,7 @@ export default function PurchaseHistoryView() {
         </div>
       )}
 
-      <PurchaseDetailModal isOpen={isOpen} purchase={selectedPurchase} onClose={onClose} />
+      <PurchaseDetailModal isOpen={isOpen} purchase={selectedPurchase} onAnulada={cargarCompras} onClose={onClose} />
     </div>
   );
 }

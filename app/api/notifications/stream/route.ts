@@ -4,6 +4,8 @@ import { prisma } from "@/src/lib/prisma";
 // Conexión abierta larga: nunca se cachea ni se pre-renderiza
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+// En Vercel la conexión se corta al llegar a este límite; el navegador reconecta solo (retry 3 s) y recibe la lista al instante
+export const maxDuration = 60;
 
 // Mantiene viva la conexión y sirve de red de seguridad si un cambio no llegó por el bus
 const LATIDO_MS = 20000;

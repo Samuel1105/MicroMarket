@@ -51,6 +51,7 @@ export default function DetailModalLayout({
   title,
   subtitle,
   badge,
+  footerExtra,
   children,
 }: {
   isOpen: boolean;
@@ -59,6 +60,8 @@ export default function DetailModalLayout({
   title: string;
   subtitle: string;
   badge?: ReactNode;
+  /** Botones adicionales en el pie (por ejemplo "Anular") */
+  footerExtra?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -90,6 +93,7 @@ export default function DetailModalLayout({
             </ModalHeader>
             <ModalBody className="py-5 space-y-5">{children}</ModalBody>
             <ModalFooter className="border-t border-default-100">
+              {footerExtra}
               <Button color="primary" radius="lg" variant="flat" onPress={close}>
                 Cerrar
               </Button>

@@ -9,9 +9,12 @@ import { ProductListType } from "@/src/schema/SchemaProduts";
 export default function CardMobileProduct({
   items,
   handleDeleteSuccess,
+  soloLectura = false,
 }: {
   items: ProductListType;
   handleDeleteSuccess: () => void;
+  /** Catálogo para consultar (Cajero): sin botones de editar ni eliminar */
+  soloLectura?: boolean;
 }) {
   return (
     <>
@@ -78,6 +81,7 @@ export default function CardMobileProduct({
               </div>
             </div>
 
+            {!soloLectura && (
             <div className="flex items-center gap-2 shrink-0">
               <Link
                 className="w-9 h-9 rounded-lg border border-default-200 flex items-center justify-center text-gray-500 hover:text-primary-600 hover:bg-primary-50 hover:border-primary-300 transition-colors"
@@ -92,6 +96,7 @@ export default function CardMobileProduct({
                 />
               </div>
             </div>
+            )}
           </div>
         </div>
       ))}

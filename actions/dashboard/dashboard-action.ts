@@ -461,6 +461,7 @@ export async function getMovimientosAlmacen() {
     const movimientos = await prisma.movimientoAlmacen.groupBy({
       by: ['fechaRegistro', 'tipoMovimiento'],
       where: {
+        tipoMovimiento: { in: [1, 2] }, // los ajustes de inventario no son entradas ni traslados
         fechaRegistro: {
           gte: inicioMes,
           lte: finMes

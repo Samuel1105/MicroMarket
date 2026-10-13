@@ -62,3 +62,9 @@ $RECYCLE.BIN/
 *.swo
 *~
 Observaciones
+
+# Datos de la base (contienen hashes de contraseñas): no se suben a GitHub
+prisma/sql/01_datos.sql
+# Documento de tesis y respaldos
+DOCUMENTO_*.pdf
+*.bak

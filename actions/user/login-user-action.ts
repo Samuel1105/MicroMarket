@@ -40,6 +40,19 @@ export async function handleLoginAction(formData: FormData) {
     });
 
     if (!persona) {
+      // ¿Es una cuenta desactivada? Solo se avisa si la contraseña es correcta (no se revela qué correos existen)
+      const inactiva = await prisma.persona.findFirst({
+        where: { correo: email, estado: { not: 1 } },
+        select: { contrase_a: true },
+      });
+
+      if (inactiva && (await checkPassword(password, inactiva.contrase_a))) {
+        return {
+          success: false,
+          error: "Tu cuenta está desactivada. Habla con el administrador.",
+        };
+      }
+
       return {
         success: false,
         error: "Credenciales incorrectas",

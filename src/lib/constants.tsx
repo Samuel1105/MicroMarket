@@ -33,9 +33,9 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
         path: "/Dashboard/Product/Category/List",
         roles: [1, 3],
       },
-      { title: "Productos", path: "/Dashboard/Product/List", roles: [1, 3] },
+      { title: "Productos", path: "/Dashboard/Product/List", roles: [1, 2, 3] }, // el Cajero solo consulta el catálogo
     ],
-    roles: [1, 3], // Solo admin y almacen
+    roles: [1, 2, 3], // Admin y almacén administran; el cajero solo consulta
   },
   {
     title: 'Ventas',
@@ -57,6 +57,11 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
       {
         title: "Historial de Compras",
         path: "/Dashboard/Purchase/List",
+        roles: [1, 3, 5],
+      },
+      {
+        title: "Recepciones",
+        path: "/Dashboard/Purchase/Receipts",
         roles: [1, 3, 5],
       },
       {
@@ -87,6 +92,11 @@ export const SIDENAV_ITEMS: SideNavItem[] = [
         title: "Movimientos",
         path: "/Dashboard/Inventory/Movements",
         roles: [1, 3, 5],
+      },
+      {
+        title: "Ajustes",
+        path: "/Dashboard/Inventory/Adjustments",
+        roles: [1, 3],
       },
     ],
     roles: [1, 3, 5],
