@@ -1,76 +1,85 @@
 // ProformaEmail.tsx
-import { Html, Head, Body, Container, Section, Text, Heading, Hr } from '@react-email/components';
+import { Html, Head, Preview, Body, Container, Section, Row, Column, Text, Heading, Hr } from '@react-email/components';
 
 interface ProformaEmailProps {
   clienteNombre: string;
   numeroVenta: string;
-  pdfUrl: string;
+  /** Fecha y hora de la venta, ya formateada (Bolivia) */
+  fecha?: string;
+  total?: number;
+  cantidadProductos?: number;
+  contacto?: string;
+  telefono?: string;
 }
 
-export default function ProformaEmail({ clienteNombre, numeroVenta }: ProformaEmailProps) {
+export default function ProformaEmail({ clienteNombre, numeroVenta, fecha, total, cantidadProductos, contacto, telefono }: ProformaEmailProps) {
+  const primerNombre = (clienteNombre || '').trim().split(/\s+/)[0] || 'cliente';
+
   return (
-    <Html>
+    <Html lang="es">
       <Head />
+      <Preview>{`Adjuntamos su proforma ${numeroVenta}. Gracias por comprar en MicroMercado Anita.`}</Preview>
       <Body style={main}>
         <Container style={container}>
-          {/* Encabezado con diseño moderno */}
-          <Section style={header}>
-            <Heading style={companyName}>MicroMercado Anita</Heading>
-            <Text style={tagline}>Tu tienda de confianza</Text>
+          <Section style={topBar}>
+            <Text style={brand}>MicroMercado Anita</Text>
+            <Text style={tagline}>Tu tienda de confianza · Cochabamba, Bolivia</Text>
           </Section>
-          
-          {/* Contenido principal */}
+
           <Section style={content}>
-            <Heading style={titleSection}>
-              Proforma #{numeroVenta}
+            <Heading as="h1" style={title}>
+              Gracias por su compra, {primerNombre}
             </Heading>
-            
-            <Text style={greeting}>
-              Estimado/a <strong>{clienteNombre}</strong>,
-            </Text>
-            
+
             <Text style={paragraph}>
-              Le enviamos adjunta la proforma <strong>#{numeroVenta}</strong> que ha solicitado.
+              Adjuntamos en PDF la proforma de su compra. Puede guardarla o imprimirla como comprobante.
             </Text>
-            
-            <Text style={paragraph}>
-              En el documento PDF adjunto encontrará:
-            </Text>
-            
-            <Section style={infoBox}>
-              <Text style={infoItem}>✓ Detalle completo de productos/servicios</Text>
-              <Text style={infoItem}>✓ Descuentos aplicados (si corresponde)</Text>
-              <Text style={infoItem}>✓ Monto total y cambio</Text>
-              <Text style={infoItem}>✓ Información de pago</Text>
+
+            <Section style={summary}>
+              <Row style={summaryRow}>
+                <Column style={summaryLabel}>Proforma:</Column>
+                <Column style={summaryValue}>N.º {numeroVenta}</Column>
+              </Row>
+              {fecha && (
+                <Row style={summaryRow}>
+                  <Column style={summaryLabel}>Fecha:</Column>
+                  <Column style={summaryValue}>{fecha}</Column>
+                </Row>
+              )}
+              {typeof cantidadProductos === 'number' && (
+                <Row style={summaryRow}>
+                  <Column style={summaryLabel}>Productos:</Column>
+                  <Column style={summaryValue}>{cantidadProductos}</Column>
+                </Row>
+              )}
+              {typeof total === 'number' && (
+                <Row style={summaryRowTotal}>
+                  <Column style={summaryLabelTotal}>Total pagado:</Column>
+                  <Column style={summaryValueTotal}>Bs {total.toFixed(2)}</Column>
+                </Row>
+              )}
             </Section>
 
             <Text style={paragraph}>
-              Agradecemos su preferencia y confianza en nuestros servicios.
-            </Text>
-            
-            <Hr style={divider} />
-            
-            <Text style={footerNote}>
-              Si tiene alguna pregunta o necesita realizar cambios, no dude en contactarnos.
+              El archivo adjunto detalla cada producto, los descuentos aplicados, el monto recibido y el cambio.
             </Text>
 
+            <Hr style={divider} />
+
+            <Text style={small}>
+              ¿Alguna duda sobre su compra? Responda a este correo o comuníquese con nosotros
+              {telefono ? ` al ${telefono}` : ''}.
+            </Text>
             <Text style={signature}>
-              Atentamente,<br />
-              <strong>El equipo de MicroMercado Anita</strong>
+              Atentamente,
+              <br />
+              <strong>Equipo MicroMercado Anita</strong>
             </Text>
           </Section>
-          
-          {/* Pie de página */}
+
           <Section style={footer}>
-            <Text style={footerText}>
-              <strong>MicroMercado Anita</strong>
-            </Text>
-            <Text style={footerText}>
-              📧 anita@gmail.com • 📞 +591 123 456 789
-            </Text>
-            <Text style={footerTextSmall}>
-              Este es un correo automático, por favor no responda directamente.
-            </Text>
+            <Text style={footerText}>MicroMercado Anita · Cochabamba, Bolivia{contacto ? ` · ${contacto}` : ''}</Text>
+            <Text style={footerSmall}>Este mensaje se generó automáticamente al registrar su compra. La proforma es un comprobante informativo y no constituye factura.</Text>
           </Section>
         </Container>
       </Body>
@@ -79,130 +88,138 @@ export default function ProformaEmail({ clienteNombre, numeroVenta }: ProformaEm
 }
 
 const main = {
-  backgroundColor: '#f4f4f5',
+  backgroundColor: '#f3f5f7',
   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
   margin: 0,
-  padding: '20px 0',
+  padding: '24px 0',
 };
 
 const container = {
   backgroundColor: '#ffffff',
   margin: '0 auto',
-  padding: '0',
-  border: '1px solid #e4e4e7',
-  borderRadius: '12px',
-  overflow: 'hidden' as const,
   width: '100%',
-  maxWidth: '600px',
-  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.07)',
+  maxWidth: '560px',
+  border: '1px solid #e1e6ea',
 };
 
-const header = {
-  backgroundColor: '#1e3a8a',
-  background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
-  padding: '40px 40px 35px',
-  textAlign: 'center' as const,
+const topBar = {
+  backgroundColor: '#0b3a55',
+  borderBottom: '4px solid #f26a10',
+  padding: '26px 32px 22px',
+  textAlign: 'left' as const,
 };
 
-const companyName = {
+const brand = {
   color: '#ffffff',
-  fontSize: '32px',
+  fontSize: '22px',
   fontWeight: '700',
-  margin: '0 0 5px 0',
-  padding: '0',
-  letterSpacing: '1px',
+  margin: '0',
+  lineHeight: '1.2',
 };
 
 const tagline = {
-  color: '#e0e7ff',
-  fontSize: '14px',
-  fontWeight: '400',
-  margin: '0',
-  padding: '0',
+  color: '#c7d8e4',
+  fontSize: '12px',
+  margin: '4px 0 0',
 };
 
 const content = {
-  padding: '40px 40px 30px',
+  padding: '30px 32px 12px',
 };
 
-const titleSection = {
-  color: '#1e3a8a',
-  fontSize: '24px',
+const title = {
+  color: '#0b3a55',
+  fontSize: '20px',
   fontWeight: '700',
-  margin: '0 0 25px 0',
-  textAlign: 'center' as const,
-  borderBottom: '3px solid #3b82f6',
-  paddingBottom: '15px',
-};
-
-const greeting = {
-  fontSize: '18px',
-  color: '#18181b',
-  marginBottom: '15px',
-  lineHeight: '1.5',
+  margin: '0 0 14px',
+  lineHeight: '1.3',
 };
 
 const paragraph = {
-  fontSize: '16px',
-  color: '#3f3f46',
-  lineHeight: '1.6',
-  margin: '15px 0',
-};
-
-const infoBox = {
-  backgroundColor: '#f0f9ff',
-  border: '1px solid #bae6fd',
-  borderRadius: '8px',
-  padding: '20px',
-  margin: '20px 0',
-};
-
-const infoItem = {
+  color: '#3b4652',
   fontSize: '15px',
-  color: '#0c4a6e',
-  lineHeight: '1.8',
-  margin: '8px 0',
-  fontWeight: '500',
+  lineHeight: '1.6',
+  margin: '0 0 16px',
+};
+
+const summary = {
+  backgroundColor: '#f6f8fa',
+  border: '1px solid #e1e6ea',
+  padding: '6px 18px',
+  margin: '4px 0 20px',
+};
+
+const summaryRow = {
+  borderBottom: '1px solid #e8ecef',
+};
+
+const summaryLabel = {
+  color: '#6b7683',
+  fontSize: '13px',
+  padding: '9px 0',
+  width: '45%',
+};
+
+const summaryValue = {
+  color: '#1f2933',
+  fontSize: '14px',
+  fontWeight: '600',
+  padding: '9px 0',
+  textAlign: 'right' as const,
+};
+
+const summaryRowTotal = {};
+
+const summaryLabelTotal = {
+  color: '#0b3a55',
+  fontSize: '14px',
+  fontWeight: '700',
+  padding: '12px 0 10px',
+  width: '45%',
+};
+
+const summaryValueTotal = {
+  color: '#0b3a55',
+  fontSize: '18px',
+  fontWeight: '700',
+  padding: '12px 0 10px',
+  textAlign: 'right' as const,
 };
 
 const divider = {
-  borderColor: '#e4e4e7',
-  margin: '30px 0',
+  borderColor: '#e1e6ea',
+  margin: '8px 0 18px',
 };
 
-const footerNote = {
-  fontSize: '14px',
-  color: '#71717a',
+const small = {
+  color: '#6b7683',
+  fontSize: '13px',
   lineHeight: '1.5',
-  margin: '20px 0',
-  fontStyle: 'italic',
+  margin: '0 0 14px',
 };
 
 const signature = {
-  fontSize: '16px',
-  color: '#18181b',
+  color: '#1f2933',
+  fontSize: '14px',
   lineHeight: '1.6',
-  margin: '25px 0 0 0',
+  margin: '0 0 18px',
 };
 
 const footer = {
-  backgroundColor: '#fafafa',
-  padding: '30px 40px',
-  borderTop: '1px solid #e4e4e7',
-  textAlign: 'center' as const,
+  backgroundColor: '#f6f8fa',
+  borderTop: '1px solid #e1e6ea',
+  padding: '18px 32px',
 };
 
 const footerText = {
-  fontSize: '14px',
-  color: '#52525b',
-  textAlign: 'center' as const,
-  margin: '5px 0',
+  color: '#52606d',
+  fontSize: '12px',
+  margin: '0 0 6px',
 };
 
-const footerTextSmall = {
-  fontSize: '12px',
-  color: '#a1a1aa',
-  textAlign: 'center' as const,
-  margin: '10px 0 0 0',
-  fontStyle: 'italic',
+const footerSmall = {
+  color: '#8a95a1',
+  fontSize: '11px',
+  lineHeight: '1.5',
+  margin: '0',
 };

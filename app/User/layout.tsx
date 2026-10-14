@@ -40,7 +40,7 @@ export default function DashBoardLayout({
     <>
       <div className="flex">
         <SideNav />
-        <main className="flex-1">
+        <main className="min-w-0 flex-1">
           <MarginWidthWrapper>
             <Header />
             <HeaderMobile />

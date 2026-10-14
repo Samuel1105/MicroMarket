@@ -111,17 +111,6 @@ export default function SalesHistoryView() {
                 <SelectItem key="anuladas">Anuladas</SelectItem>
               </Select>
               <Select
-                disallowEmptySelection
-                label="Forma de pago"
-                selectedKeys={[pago]}
-                onSelectionChange={(k) => setPago((Array.from(k)[0] as string) || 'todos')}
-              >
-                <SelectItem key="todos">Todas</SelectItem>
-                <SelectItem key="1">Efectivo</SelectItem>
-                <SelectItem key="2">Tarjeta</SelectItem>
-                <SelectItem key="3">Transferencia</SelectItem>
-              </Select>
-              <Select
                 description={hayRango ? 'Usando el rango de fechas' : undefined}
                 disallowEmptySelection
                 isDisabled={hayRango}
@@ -142,7 +131,7 @@ export default function SalesHistoryView() {
               />
             </>
           }
-          filtersCols={4}
+          filtersCols={3}
           search={search}
           searchPlaceholder="Buscar por número de venta, cliente o carnet..."
           title="Historial de ventas"

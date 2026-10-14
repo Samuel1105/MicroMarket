@@ -12,7 +12,7 @@ import DetailModalLayout, { InfoTile, TotalRow } from "@/components/ui/DetailMod
 import { ESTADO_ANULADO, MOTIVOS_ANULACION_COMPRA, puedeAnularCompra } from "@/src/lib/anulaciones";
 import { ESTADO_COMPRA_POR_RECIBIR, puedeValidarRecepcion } from "@/src/lib/compras";
 import { formatVencimiento, getDiasParaVencer, getSeveridad } from "@/src/utils/expiry";
-import { formatShortDate } from "@/src/utils/period";
+import { formatShortDate, formatTime } from "@/src/utils/period";
 
 interface PurchaseDetail {
   id: number;
@@ -45,6 +45,9 @@ interface Purchase {
   estado: number;
   /** Solo si la compra está anulada */
   anulacion?: { motivo: string; usuario: string; fecha: string } | null;
+  registradaPor?: string;
+  fechaHora?: string | null;
+  recepcion?: { usuario: string; fecha: string | null } | null;
   /** true si ya se sacó mercadería de sus lotes al estante (o se ajustó): ya no se puede anular */
   bloqueada?: boolean;
   detalles: PurchaseDetail[];
@@ -165,6 +168,24 @@ export default function PurchaseDetailModal({ isOpen, onClose, purchase, onAnula
         <InfoTile icon="heroicons:archive-box" label="Unidades compradas">
           {totalUnidades}
         </InfoTile>
+        {purchase.registradaPor && (
+          <InfoTile icon="heroicons:user" label="Registró la compra">
+            {purchase.registradaPor}
+            {purchase.fechaHora && <span className="block text-xs font-normal text-gray-500">{formatShortDate(purchase.fechaHora)} · {formatTime(purchase.fechaHora)}</span>}
+          </InfoTile>
+        )}
+        {purchase.recepcion && (
+          <InfoTile icon="heroicons:clipboard-document-check" label="Validó la recepción">
+            {purchase.recepcion.usuario}
+            {purchase.recepcion.fecha && <span className="block text-xs font-normal text-gray-500">{formatShortDate(purchase.recepcion.fecha)} · {formatTime(purchase.recepcion.fecha)}</span>}
+          </InfoTile>
+        )}
+        {anulada && purchase.anulacion && (
+          <InfoTile icon="heroicons:no-symbol" label="Anulada por">
+            {purchase.anulacion.usuario}
+            <span className="block text-xs font-normal text-gray-500">{formatShortDate(purchase.anulacion.fecha)} · {formatTime(purchase.anulacion.fecha)}</span>
+          </InfoTile>
+        )}
       </div>
 
       <div className="space-y-2">

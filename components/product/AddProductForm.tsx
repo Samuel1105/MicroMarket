@@ -17,20 +17,21 @@ export default function AddProductForm({ children }: AddProductFormProps) {
 
   return (
     <FormProvider {...methods}>
-      <form className="space-y-8" onSubmit={onSubmit}>
+      <form className="space-y-5 pb-4" onSubmit={onSubmit}>
         {children}
 
         {/* Botones de acción */}
-        <div className="sticky bottom-0 bg-white border-t border-gray-200 pt-4 mt-8">
+        <div className="sticky bottom-0 z-10 -mx-4 mt-6 border-t border-gray-200 bg-white/95 px-4 py-3 backdrop-blur">
           <div className="flex justify-between items-center">
-            <div className="flex items-center gap-2">
+            <div className="hidden items-center gap-2 sm:flex">
               <span className="text-sm text-gray-500">
                 Completa todos los campos requeridos
               </span>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex w-full gap-3 sm:w-auto">
               <Button
+                className="flex-1 sm:flex-none"
                 color="default"
                 isDisabled={isSubmitting}
                 type="button"
@@ -41,6 +42,7 @@ export default function AddProductForm({ children }: AddProductFormProps) {
               </Button>
 
               <Button
+                className="flex-1 sm:flex-none"
                 color="success"
                 isDisabled={!isValid}
                 isLoading={isSubmitting}

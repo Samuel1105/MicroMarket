@@ -19,6 +19,7 @@ export async function getPurchaseHistory() {
         descuento: true,
         total: true,
         estado: true,
+        usuarioIdRegistro: true,
         Proveedor: {
           select: {
             id: true,
@@ -70,9 +71,31 @@ export async function getPurchaseHistory() {
 
     const anulaciones = await cargarAnulaciones(ANULACION_COMPRA, compras.filter(c => c.estado === ESTADO_ANULADO).map(c => c.id));
 
+    // Quién registró la compra y quién validó su recepción (el ingreso al almacén)
+    const ingresos = await prisma.movimientoAlmacen.findMany({
+      where: { tipoMovimiento: 1, tipoReferencia: 1, referenciaID: { in: compras.map(c => c.id) } },
+      select: { referenciaID: true, usuarioIdRegistro: true, fechaRegistro: true },
+      orderBy: { id: "asc" },
+    });
+    const idsPersonas = Array.from(new Set([...compras.map(c => c.usuarioIdRegistro), ...ingresos.map(i => i.usuarioIdRegistro)]));
+    const personas = idsPersonas.length
+      ? await prisma.persona.findMany({ where: { id: { in: idsPersonas } }, select: { id: true, primerNombre: true, apellidoPaterno: true } })
+      : [];
+    const nombres = new Map(personas.map(p => [p.id, `${p.primerNombre} ${p.apellidoPaterno}`]));
+    const recepcion = new Map<number, { usuario: string; fecha: string | null }>();
+
+    for (const i of ingresos) {
+      if (i.referenciaID && !recepcion.has(i.referenciaID)) {
+        recepcion.set(i.referenciaID, { usuario: nombres.get(i.usuarioIdRegistro) ?? `Usuario ${i.usuarioIdRegistro}`, fecha: i.fechaRegistro?.toISOString() ?? null });
+      }
+    }
+
     // Transformar los datos para una estructura más limpia
     const comprasTransformadas = compras.map(compra => ({
       id: compra.id,
+      registradaPor: nombres.get(compra.usuarioIdRegistro) ?? `Usuario ${compra.usuarioIdRegistro}`,
+      fechaHora: compra.fechaRegistro?.toISOString() ?? null,
+      recepcion: recepcion.get(compra.id) ?? null,
       anulacion: anulaciones.get(compra.id) ?? null,
       bloqueada: compra.DetalleCompra.some(d => d.Lote.some(l => l.MovimientoAlmacen.length > 0)),
       numeroCompra: compra.numeroCompra || 'SIN NÚMERO',

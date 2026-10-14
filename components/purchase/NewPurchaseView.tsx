@@ -8,7 +8,7 @@ import { toast } from "react-toastify";
 
 import { useAuth } from "@/app/context/AuthContext";
 import { createPurchaseAction } from "@/actions/purchase/create-purchase-action";
-import { getSolicitudParaCompra } from "@/actions/purchase/purchase-request-action";
+import { getSolicitudParaCompra, getUltimaCompraPorProducto } from "@/actions/purchase/purchase-request-action";
 import Breadcrumbs from "@/components/ui/Breadcrumbs";
 import { ProductoConUnidades, PurchaseDetailItem, UnidadProducto } from "@/src/schema/SchemaPurchase";
 import { generatePurchaseNumber } from "@/src/store/purchaseSlice";
@@ -121,7 +121,33 @@ export default function NewPurchaseView() {
           await fetchProductosBySupplier(s.proveedorID);
           const productos = useAppStore.getState().productosProveedor;
 
-          setDetailPurchase(productos.filter((p) => s.productoIDs.includes(p.id)).map((p, i) => nuevaLinea(p, i)));
+          // Cada línea parte de cómo se compró la última vez (unidad, cantidad y precio): normalmente solo se corrige el precio
+          const ultimas = await getUltimaCompraPorProducto(s.productoIDs);
+
+          setDetailPurchase(
+            productos
+              .filter((p) => s.productoIDs.includes(p.id))
+              .map((p, i) => {
+                const linea = nuevaLinea(p, i);
+                const u = ultimas[p.id];
+                const unidad = u ? p.unidades.find((x) => x.unidadId === u.unidadMedidaID) : undefined;
+
+                if (!u || !unidad) return linea;
+                const subtotal = Math.round(u.cantidad * u.precioUnitario * 100) / 100;
+
+                return {
+                  ...linea,
+                  unidadMedidaId: unidad.unidadId,
+                  unidadNombre: unidad.nombre,
+                  unidadAbreviatura: unidad.abreviatura ?? "",
+                  factorConversion: unidad.factor,
+                  cantidadComprada: u.cantidad,
+                  precioUnitario: u.precioUnitario,
+                  subtotal,
+                  total: subtotal,
+                };
+              }),
+          );
           setSolicitud({ id: s.id, numero: s.numero });
         }
       }
@@ -279,8 +305,8 @@ export default function NewPurchaseView() {
           <div className="mt-4 flex items-start gap-3 rounded-xl bg-secondary-50 text-secondary-900 text-sm px-4 py-3">
             <Icon className="mt-0.5 shrink-0 text-secondary-600" height="18" icon="heroicons:clipboard-document-list" width="18" />
             <span>
-              Esta compra viene de la solicitud <b>{solicitud.numero}</b>: los productos ya están cargados. Solo completa la
-              cantidad y el precio de cada uno.
+              Esta compra viene de la solicitud <b>{solicitud.numero}</b>: los productos ya están cargados con la unidad, la
+              cantidad y el precio de su <b>última compra</b>. Corrige lo que cambió (normalmente, el precio) y completa el vencimiento si el producto vence.
             </span>
           </div>
         )}

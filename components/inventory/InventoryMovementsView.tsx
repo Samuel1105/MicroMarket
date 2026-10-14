@@ -10,6 +10,7 @@ import {
 } from "@/actions/inventory/inventory-movements-action";
 import Breadcrumbs from "@/components/ui/Breadcrumbs";
 import ListHeaderCard from "@/components/ui/ListHeaderCard";
+import MovimientosDetalleModal from "@/components/inventory/MovimientosDetalleModal";
 import StatCard from "@/components/ui/StatCard";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 import { formatDay, formatTime, inDateRange, inPeriod, Period, PERIOD_OPTIONS } from "@/src/utils/period";
@@ -79,6 +80,7 @@ export default function InventoryMovementsView() {
   const [rangeKey, setRangeKey] = useState(0);
   const hayRango = Boolean(desde || hasta);
   const [page, setPage] = useState(1);
+  const [detalle, setDetalle] = useState<MovementType | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -121,6 +123,11 @@ export default function InventoryMovementsView() {
     }),
     [filtered],
   );
+
+  const itemsDetalle = useMemo(() => (detalle ? filtered.filter((m) => m.tipo === detalle) : []), [filtered, detalle]);
+  const rangoTexto = hayRango
+    ? `del ${desde || "inicio"} al ${hasta || "hoy"}`
+    : (PERIOD_OPTIONS.find((p) => p.key === periodo)?.label ?? "").toLowerCase();
 
   const pages = Math.max(1, Math.ceil(filtered.length / ROWS_PER_PAGE));
   const pageItems = filtered.slice((page - 1) * ROWS_PER_PAGE, page * ROWS_PER_PAGE);
@@ -188,6 +195,7 @@ export default function InventoryMovementsView() {
           hint="Compras que ingresaron"
           icon="heroicons:arrow-down-tray"
           label="Entradas"
+          onClick={() => setDetalle("entrada")}
           tone="success"
           value={counts.entrada}
         />
@@ -195,6 +203,7 @@ export default function InventoryMovementsView() {
           hint="Del almacén al estante"
           icon="heroicons:arrows-right-left"
           label="Traslados"
+          onClick={() => setDetalle("traslado")}
           tone="secondary"
           value={counts.traslado}
         />
@@ -202,6 +211,7 @@ export default function InventoryMovementsView() {
           hint="Productos vendidos"
           icon="heroicons:arrow-up-tray"
           label="Salidas"
+          onClick={() => setDetalle("salida")}
           tone="danger"
           value={counts.salida}
         />
@@ -209,6 +219,7 @@ export default function InventoryMovementsView() {
           hint="Correcciones de stock"
           icon="heroicons:adjustments-horizontal"
           label="Ajustes"
+          onClick={() => setDetalle("ajuste")}
           tone="warning"
           value={counts.ajuste}
         />
@@ -294,6 +305,12 @@ export default function InventoryMovementsView() {
                             {m.codigoBarras}
                           </span>
                         )}
+                        {m.usuario && !m.ajuste && (
+                          <span className="flex items-center gap-1">
+                            <Icon height="13" icon="heroicons:user" width="13" />
+                            {m.tipo === "salida" ? "Vendió" : m.tipo === "entrada" ? "Recibió" : "Sacó"} {m.usuario}
+                          </span>
+                        )}
                         {m.ajuste && (
                           <>
                             <span className="flex items-center gap-1">
@@ -351,6 +368,13 @@ export default function InventoryMovementsView() {
           </p>
         </div>
       )}
+
+      <MovimientosDetalleModal
+        items={itemsDetalle}
+        rangoTexto={rangoTexto}
+        tipo={detalle}
+        onClose={() => setDetalle(null)}
+      />
     </div>
   );
 }

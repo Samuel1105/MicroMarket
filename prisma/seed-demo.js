@@ -155,6 +155,7 @@ async function main() {
     async (tx) => {
       // 1) BORRAR datos del negocio (orden seguro por claves foráneas)
       for (const m of [
+        "solicitudCompraDetalle", "solicitudCompra", "notificacion", "anulacion", // avisos y solicitudes que dejan las pruebas
         "detalleVenta", "venta", "codigoBarrasItem", "stockVenta", "movimientoAlmacen", "lote",
         "detalleCompra", "compra", "conversionUnidad", "producto", "cliente", "proveedor", "categoria",
       ]) {
@@ -439,8 +440,9 @@ async function main() {
           const subtotal = round2(detalles.reduce((s, d) => s + d.subtotal, 0));
           const descuento = round2(detalles.reduce((s, d) => s + d.descuento, 0));
           const total = round2(subtotal - descuento);
-          const metodo = pickW([1, 2, 3], [70, 10, 20]);
-          const recibido = metodo === 1 ? Math.max(total, Math.ceil(total / pick([5, 10, 50])) * pick([5, 10])) : total;
+          // El sistema solo cobra en EFECTIVO (el documento no contempla tarjeta ni transferencia): metodoPago = 1 siempre
+          const metodo = 1;
+          const recibido = Math.max(total, Math.ceil(total / pick([5, 10, 50])) * pick([5, 10]));
           const cliente = rnd() < 0.35 ? clienteGeneral : pick(clientesPeso);
           const vendedor = rnd() < 0.72 ? u.cajero : u.admin;
 

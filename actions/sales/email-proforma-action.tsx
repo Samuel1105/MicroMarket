@@ -7,11 +7,16 @@ import fs from 'fs';
 import path from 'path';
 import { getBoliviaTime } from '@/src/utils/date';
 
+// Remitente: SMTP_FROM si existe; si no, el usuario SMTP (o el GMAIL_EMAIL de antes)
+const REMITENTE = (process.env.SMTP_FROM || process.env.SMTP_USER || process.env.GMAIL_EMAIL || 'micromercado.anita@gmail.com') as string;
+
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT),
+  secure: process.env.SMTP_SECURE === "true",
   auth: {
-    user: process.env.GMAIL_EMAIL,
-    pass: process.env.GMAIL_APP_PASSWORD,
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
   },
 });
 
@@ -28,6 +33,7 @@ interface EnviarProformaParams {
   cliente: {
     nombre: string;
     correo: string;
+    carnet?: string;
   };
   items: Array<{
     id: number;
@@ -47,22 +53,28 @@ export async function enviarProformaPorCorreo({
   try {
     const pdfBuffer = await generarPDFConPDFLib({ venta, cliente, items });
 
-    const emailHtml = await render(
-      ProformaEmail({
-        clienteNombre: cliente.nombre,
-        numeroVenta: venta.numeroVenta,
-        pdfUrl: "#",
-      })
-    );
+    const { fecha, hora } = fechaHoraBolivia();
+    const datosCorreo = {
+      clienteNombre: cliente.nombre,
+      numeroVenta: venta.numeroVenta,
+      fecha: `${fecha} ${hora}`,
+      total: venta.total,
+      cantidadProductos: items.length,
+      contacto: REMITENTE,
+      telefono: process.env.NEGOCIO_TELEFONO,
+    };
+    const emailHtml = await render(ProformaEmail(datosCorreo));
+    const emailTexto = await render(ProformaEmail(datosCorreo), { plainText: true });
 
     const mailOptions = {
       from: {
         name: 'MicroMercado Anita',
-        address: process.env.GMAIL_EMAIL!
+        address: REMITENTE
       },
       to: cliente.correo,
-      subject: `Proforma #${venta.numeroVenta} - MicroMercado Anita`,
+      subject: `Su proforma N.º ${venta.numeroVenta} · MicroMercado Anita`,
       html: emailHtml,
+      text: emailTexto,
       attachments: [
         {
           filename: `proforma-${venta.numeroVenta}.pdf`,
@@ -91,498 +103,194 @@ export async function enviarProformaPorCorreo({
 }
 
 // Helvetica estándar solo dibuja Latin-1: lo demás se cambia por "?" en vez de hacer fallar el correo
-const limpiar = (s: string) => (s ?? '').replace(/[^\x20-\x7E\u00A0-\u00FF]/g, '?');
+const limpiar = (s: string) => (s ?? '').replace(/[^\x20-\x7E -ÿ]/g, '?');
+
+const dos = (n: number) => String(n).padStart(2, '0');
+
+/** Fecha y hora de Bolivia (getBoliviaTime ya viene ajustada: se lee en UTC) */
+function fechaHoraBolivia() {
+  const d = getBoliviaTime();
+
+  return {
+    fecha: `${dos(d.getUTCDate())}/${dos(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`,
+    hora: `${dos(d.getUTCHours())}:${dos(d.getUTCMinutes())}`,
+  };
+}
+
+const bs = (n: number) => `Bs ${n.toFixed(2)}`;
 
 async function generarPDFConPDFLib({ venta, cliente, items }: EnviarProformaParams): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
-  let page = pdfDoc.addPage([595, 842]); // A4 size
-  const { width, height } = page.getSize();
-  
+  const W = 595;
+  const H = 842;
+  const M = 48; // margen
+  const DER = W - M;
+
+  let page = pdfDoc.addPage([W, H]);
+
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  
-  // Colores profesionales
-  const primaryColor = rgb(0.102, 0.227, 0.424); // Azul oscuro profesional
-  const secondaryColor = rgb(0.941, 0.502, 0.502); // Rosa suave
-  const accentColor = rgb(0.8, 0.1, 0.1); // Rojo para descuentos
-  const successColor = rgb(0.2, 0.6, 0.2); // Verde para cambio
-  const lightGray = rgb(0.95, 0.95, 0.95);
-  const darkText = rgb(0.2, 0.2, 0.2);
-  const mediumGray = rgb(0.5, 0.5, 0.5);
-  
-  // ========== MARCA DE AGUA ==========
-  try {
-    const logoPath = path.join(process.cwd(), 'public', 'Image', 'logo.png');
-    if (fs.existsSync(logoPath)) {
-      const logoBytes = fs.readFileSync(logoPath);
-      const logoArray = Uint8Array.from(logoBytes);
-      const logoImage = await pdfDoc.embedPng(logoArray);
-      
-      const logoSize = 250;
-      const logoDims = logoImage.scale(logoSize / logoImage.width);
-      
-      const logoX = (width - logoDims.width) / 2;
-      const logoY = (height - logoDims.height) / 2;
-      
-      page.drawImage(logoImage, {
-        x: logoX,
-        y: logoY,
-        width: logoDims.width,
-        height: logoDims.height,
-        opacity: 0.06,
-      });
-    }
-  } catch (error) {
-    console.log('Logo no encontrado, continuando sin marca de agua');
-  }
-  
-  // ========== ENCABEZADO PROFESIONAL ==========
-  let yPos = height - 60;
-  
-  // Nombre de la empresa
-  page.drawText('MicroMercado Anita', {
-    x: 50,
-    y: yPos,
-    size: 26,
-    font: boldFont,
-    color: primaryColor,
-  });
-  
-  yPos -= 20;
-  
-  page.drawText('Tu tienda de confianza', {
-    x: 50,
-    y: yPos,
-    size: 10,
-    font: font,
-    color: mediumGray,
-  });
-  
-  // Línea decorativa
-  yPos -= 15;
-  page.drawLine({
-    start: { x: 50, y: yPos },
-    end: { x: width - 50, y: yPos },
-    thickness: 2,
-    color: primaryColor,
-  });
-  
-  // Información de la proforma (derecha)
-  const proformaY = height - 60;
-  page.drawText('PROFORMA', {
-    x: width - 200,
-    y: proformaY,
-    size: 16,
-    font: boldFont,
-    color: primaryColor,
-  });
-  
-  page.drawText(`# ${venta.numeroVenta}`, {
-    x: width - 200,
-    y: proformaY - 20,
-    size: 11,
-    font: boldFont,
-    color: darkText,
-  });
-  
-  // Fecha de Bolivia (el servidor puede estar en UTC): se lee en UTC porque getBoliviaTime() ya viene ajustada
-  const fechaActual = getBoliviaTime().toLocaleDateString('es-ES', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    timeZone: 'UTC'
-  });
-  
-  page.drawText(`Fecha: ${fechaActual}`, {
-    x: width - 200,
-    y: proformaY - 35,
-    size: 9,
-    font: font,
-    color: mediumGray,
-  });
-  
-  // ========== INFORMACIÓN DEL CLIENTE ==========
-  yPos -= 40;
-  
-  // Caja con fondo para info del cliente
-  page.drawRectangle({
-    x: 50,
-    y: yPos - 50,
-    width: width - 100,
-    height: 60,
-    color: lightGray,
-    borderColor: primaryColor,
-    borderWidth: 1,
-  });
-  
-  page.drawText('CLIENTE', {
-    x: 60,
-    y: yPos - 15,
-    size: 10,
-    font: boldFont,
-    color: primaryColor,
-  });
-  
-  page.drawText(limpiar(cliente.nombre), {
-    x: 60,
-    y: yPos - 32,
-    size: 11,
-    font: boldFont,
-    color: darkText,
-  });
-  
-  page.drawText(limpiar(cliente.correo), {
-    x: 60,
-    y: yPos - 47,
-    size: 9,
-    font: font,
-    color: mediumGray,
-  });
-  
-  // ========== TABLA DE PRODUCTOS ==========
-  yPos -= 90;
-  
-  // Encabezado de tabla con fondo
-  page.drawRectangle({
-    x: 50,
-    y: yPos - 20,
-    width: width - 100,
-    height: 25,
-    color: primaryColor,
-  });
-  
-  page.drawText('DESCRIPCIÓN', {
-    x: 60,
-    y: yPos - 13,
-    size: 9,
-    font: boldFont,
-    color: rgb(1, 1, 1),
-  });
-  
-  page.drawText('CANT', {
-    x: 320,
-    y: yPos - 13,
-    size: 9,
-    font: boldFont,
-    color: rgb(1, 1, 1),
-  });
-  
-  page.drawText('P. UNIT', {
-    x: 375,
-    y: yPos - 13,
-    size: 9,
-    font: boldFont,
-    color: rgb(1, 1, 1),
-  });
-  
-  page.drawText('DESC', {
-    x: 440,
-    y: yPos - 13,
-    size: 9,
-    font: boldFont,
-    color: rgb(1, 1, 1),
-  });
-  
-  page.drawText('TOTAL', {
-    x: 490,
-    y: yPos - 13,
-    size: 9,
-    font: boldFont,
-    color: rgb(1, 1, 1),
-  });
-  
-  yPos -= 30;
+  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-  // Si hay muchos productos, el detalle sigue en otra hoja (con su propio encabezado de tabla)
-  const nuevaPagina = (conTabla: boolean) => {
-    page = pdfDoc.addPage([595, 842]);
-    yPos = height - 60;
+  const azul = rgb(0.043, 0.227, 0.333); // #0B3A55
+  const naranja = rgb(0.949, 0.416, 0.063); // #F26A10
+  const texto = rgb(0.13, 0.15, 0.18);
+  const gris = rgb(0.42, 0.45, 0.5);
+  const lineaSuave = rgb(0.86, 0.88, 0.9);
+  const fondoSuave = rgb(0.965, 0.973, 0.98);
+  const rojo = rgb(0.75, 0.12, 0.12);
+  const verde = rgb(0.1, 0.5, 0.25);
+  const blanco = rgb(1, 1, 1);
 
-    page.drawText(`Proforma # ${limpiar(venta.numeroVenta)} (continuación)`, {
-      x: 50,
-      y: yPos,
-      size: 11,
-      font: boldFont,
-      color: primaryColor,
-    });
-    yPos -= 35;
+  const { fecha, hora } = fechaHoraBolivia();
 
-    if (conTabla) {
-      page.drawRectangle({ x: 50, y: yPos - 20, width: width - 100, height: 25, color: primaryColor });
-      [['DESCRIPCIÓN', 60], ['CANT', 320], ['P. UNIT', 375], ['DESC', 440], ['TOTAL', 490]].forEach(([titulo, x]) => {
-        page.drawText(titulo as string, { x: x as number, y: yPos - 13, size: 9, font: boldFont, color: rgb(1, 1, 1) });
-      });
-      yPos -= 30;
-    }
+  const derecha = (t: string, xDer: number, y: number, size: number, f = font, color = texto) =>
+    page.drawText(t, { x: xDer - f.widthOfTextAtSize(t, size), y, size, font: f, color });
+
+  const recortar = (t: string, ancho: number, size: number, f = font) => {
+    let s = limpiar(t);
+
+    if (f.widthOfTextAtSize(s, size) <= ancho) return s;
+    while (s.length > 1 && f.widthOfTextAtSize(s + '...', size) > ancho) s = s.slice(0, -1);
+
+    return s.trimEnd() + '...';
   };
 
-  // Items de la venta
-  items.forEach((item, index) => {
-    if (yPos < 170) nuevaPagina(true);
+  // ========== ENCABEZADO ==========
+  let y = H - M;
 
-    // Línea separadora sutil
-    if (index > 0) {
-      page.drawLine({
-        start: { x: 50, y: yPos + 12 },
-        end: { x: width - 50, y: yPos + 12 },
-        thickness: 0.5,
-        color: lightGray,
-      });
+  try {
+    const logoPath = path.join(process.cwd(), 'public', 'Image', 'logo-proforma.png');
+
+    if (fs.existsSync(logoPath)) {
+      const logo = await pdfDoc.embedPng(Uint8Array.from(fs.readFileSync(logoPath)));
+
+      page.drawImage(logo, { x: M, y: y - 56, width: 56, height: 56 });
     }
-    
-    // Nombre del producto
-    const maxLength = 35;
-    const productoLimpio = limpiar(item.productoNombre);
-    const nombre = productoLimpio.length > maxLength
-      ? productoLimpio.substring(0, maxLength) + '...'
-      : productoLimpio;
-    
-    page.drawText(nombre, {
-      x: 60,
-      y: yPos,
-      size: 9,
-      font: font,
-      color: darkText,
-    });
-    
-    // Cantidad
-    page.drawText(item.cantidad.toString(), {
-      x: 330,
-      y: yPos,
-      size: 9,
-      font: font,
-      color: darkText,
-    });
-    
-    // Precio unitario
-    page.drawText(item.precioUnitario.toFixed(2), {
-      x: 380,
-      y: yPos,
-      size: 9,
-      font: font,
-      color: darkText,
-    });
-    
-    // Descuento
-    const descuento = item.descuento || 0;
-    page.drawText(descuento.toFixed(2), {
-      x: 445,
-      y: yPos,
-      size: 9,
-      font: font,
-      color: descuento > 0 ? accentColor : mediumGray,
-    });
-    
-    // Total
-    page.drawText(item.total.toFixed(2), {
-      x: 495,
-      y: yPos,
-      size: 9,
-      font: boldFont,
-      color: darkText,
-    });
-    
-    yPos -= 20;
-  });
-  
-  // ========== RESUMEN DE TOTALES ==========
-  // Los totales necesitan ~190 pt: si no caben, pasan a una hoja nueva
-  if (yPos < 290) nuevaPagina(false);
-  yPos -= 20;
-  
-  // Línea superior
-  page.drawLine({
-    start: { x: 350, y: yPos },
-    end: { x: width - 50, y: yPos },
-    thickness: 1.5,
-    color: primaryColor,
-  });
-  
-  yPos -= 25;
-  
-  // Subtotal
-  page.drawText('Subtotal:', {
-    x: 380,
-    y: yPos,
-    size: 10,
-    font: font,
-    color: darkText,
-  });
-  
-  page.drawText(`Bs ${venta.subtotal.toFixed(2)}`, {
-    x: 480,
-    y: yPos,
-    size: 10,
-    font: font,
-    color: darkText,
-  });
-  
-  yPos -= 18;
-  
-  // Descuento (si existe)
-  if (venta.descuento > 0) {
-    page.drawText('Descuento:', {
-      x: 380,
-      y: yPos,
-      size: 10,
-      font: font,
-      color: darkText,
-    });
-    
-    page.drawText(`- Bs ${venta.descuento.toFixed(2)}`, {
-      x: 480,
-      y: yPos,
-      size: 10,
-      font: font,
-      color: accentColor,
-    });
-    
-    yPos -= 20;
-  } else {
-    yPos -= 2;
+  } catch {
+    // sin logo: el encabezado sigue funcionando
   }
-  
-  // Línea antes del total
-  page.drawLine({
-    start: { x: 350, y: yPos },
-    end: { x: width - 50, y: yPos },
-    thickness: 0.5,
-    color: mediumGray,
+
+  page.drawText('MicroMercado Anita', { x: M + 68, y: y - 22, size: 20, font: bold, color: azul });
+  page.drawText('Tu tienda de confianza', { x: M + 68, y: y - 38, size: 9.5, font, color: gris });
+  page.drawText('Cochabamba, Bolivia', { x: M + 68, y: y - 51, size: 9, font, color: gris });
+
+  derecha('PROFORMA DE VENTA', DER, y - 18, 15, bold, azul);
+  derecha(`N.º ${limpiar(venta.numeroVenta)}`, DER, y - 35, 10.5, bold, texto);
+  derecha(`Fecha: ${fecha}  ·  Hora: ${hora}`, DER, y - 49, 9, font, gris);
+
+  y -= 68;
+  page.drawRectangle({ x: M, y, width: DER - M, height: 2.5, color: azul });
+  page.drawRectangle({ x: M, y: y - 2.5, width: 70, height: 2.5, color: naranja });
+
+  // ========== CLIENTE ==========
+  y -= 22;
+  const altoCliente = 52;
+
+  page.drawRectangle({ x: M, y: y - altoCliente, width: DER - M, height: altoCliente, color: fondoSuave, borderColor: lineaSuave, borderWidth: 0.8 });
+  page.drawText('CLIENTE', { x: M + 14, y: y - 15, size: 8, font: bold, color: naranja });
+  page.drawText(recortar(cliente.nombre, 300, 12, bold), { x: M + 14, y: y - 31, size: 12, font: bold, color: texto });
+
+  const datosCliente = [cliente.carnet && cliente.carnet !== '0' ? `Carnet: ${cliente.carnet}` : null, cliente.correo].filter(Boolean).join('   ·   ');
+
+  page.drawText(recortar(datosCliente, 330, 9), { x: M + 14, y: y - 44, size: 9, font, color: gris });
+
+  derecha('FORMA DE PAGO', DER - 14, y - 15, 8, bold, naranja);
+  derecha('Efectivo', DER - 14, y - 31, 11, bold, texto);
+  derecha('Atendido en caja', DER - 14, y - 44, 9, font, gris);
+
+  // ========== TABLA ==========
+  y -= altoCliente + 26;
+
+  const xNum = M + 8;
+  const xDesc = M + 30;
+  const xCant = 352;
+  const xPUnit = 424;
+  const xDescuento = 488;
+  const xTotal = DER - 8;
+
+  const cabeceraTabla = () => {
+    page.drawRectangle({ x: M, y: y - 22, width: DER - M, height: 22, color: azul });
+    page.drawText('N.º', { x: xNum, y: y - 15, size: 8.5, font: bold, color: blanco });
+    page.drawText('DESCRIPCIÓN', { x: xDesc, y: y - 15, size: 8.5, font: bold, color: blanco });
+    derecha('CANT.', xCant, y - 15, 8.5, bold, blanco);
+    derecha('P. UNIT.', xPUnit, y - 15, 8.5, bold, blanco);
+    derecha('DESC.', xDescuento, y - 15, 8.5, bold, blanco);
+    derecha('TOTAL', xTotal, y - 15, 8.5, bold, blanco);
+    y -= 22;
+  };
+
+  const nuevaPagina = (conTabla: boolean) => {
+    page = pdfDoc.addPage([W, H]);
+    y = H - M;
+    page.drawText(`Proforma N.º ${limpiar(venta.numeroVenta)} (continuación)`, { x: M, y: y - 12, size: 11, font: bold, color: azul });
+    y -= 34;
+    if (conTabla) cabeceraTabla();
+  };
+
+  cabeceraTabla();
+
+  const ALTO_FILA = 24;
+  const cantidadTexto = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
+
+  items.forEach((item, i) => {
+    if (y < 190) nuevaPagina(true);
+
+    if (i % 2 === 1) page.drawRectangle({ x: M, y: y - ALTO_FILA, width: DER - M, height: ALTO_FILA, color: fondoSuave });
+
+    const base = y - 16;
+    const desc = item.descuento || 0;
+
+    page.drawText(String(i + 1), { x: xNum, y: base, size: 9, font, color: gris });
+    page.drawText(recortar(item.productoNombre, xCant - 70 - xDesc, 9.5), { x: xDesc, y: base, size: 9.5, font, color: texto });
+    derecha(cantidadTexto(item.cantidad), xCant, base, 9.5);
+    derecha(item.precioUnitario.toFixed(2), xPUnit, base, 9.5);
+    derecha(desc > 0 ? `- ${desc.toFixed(2)}` : '-', xDescuento, base, 9.5, font, desc > 0 ? rojo : gris);
+    derecha(item.total.toFixed(2), xTotal, base, 9.5, bold);
+
+    y -= ALTO_FILA;
   });
-  
-  yPos -= 22;
-  
-  // Total destacado
-  page.drawRectangle({
-    x: 365,
-    y: yPos - 5,
-    width: width - 415,
-    height: 28,
-    color: rgb(0.95, 0.97, 1),
-    borderColor: primaryColor,
-    borderWidth: 1.5,
-  });
-  
-  page.drawText('TOTAL:', {
-    x: 380,
-    y: yPos + 5,
-    size: 13,
-    font: boldFont,
-    color: primaryColor,
-  });
-  
-  page.drawText(`Bs ${venta.total.toFixed(2)}`, {
-    x: 470,
-    y: yPos + 5,
-    size: 13,
-    font: boldFont,
-    color: accentColor,
-  });
-  
-  yPos -= 40;
-  
-  // ========== INFORMACIÓN DE PAGO ==========
-  page.drawLine({
-    start: { x: 50, y: yPos },
-    end: { x: width - 50, y: yPos },
-    thickness: 0.5,
-    color: lightGray,
-  });
-  
-  yPos -= 20;
-  
-  page.drawText('Monto Recibido:', {
-    x: 380,
-    y: yPos,
-    size: 10,
-    font: font,
-    color: darkText,
-  });
-  
-  page.drawText(`Bs ${venta.montoRecibido.toFixed(2)}`, {
-    x: 480,
-    y: yPos,
-    size: 10,
-    font: font,
-    color: darkText,
-  });
-  
-  yPos -= 22;
-  
-  // Cambio destacado
-  page.drawRectangle({
-    x: 365,
-    y: yPos - 5,
-    width: width - 415,
-    height: 26,
-    color: rgb(0.93, 0.98, 0.93),
-    borderColor: successColor,
-    borderWidth: 1.5,
-  });
-  
-  page.drawText('Cambio:', {
-    x: 380,
-    y: yPos + 4,
-    size: 11,
-    font: boldFont,
-    color: darkText,
-  });
-  
-  page.drawText(`Bs ${venta.cambio.toFixed(2)}`, {
-    x: 480,
-    y: yPos + 4,
-    size: 11,
-    font: boldFont,
-    color: successColor,
-  });
-  
-  // ========== PIE DE PÁGINA (en cada hoja) ==========
+
+  page.drawLine({ start: { x: M, y }, end: { x: DER, y }, thickness: 0.8, color: lineaSuave });
+
+  // ========== TOTALES (pegados a la tabla) ==========
+  if (y < 250) nuevaPagina(false);
+  y -= 24;
+
+  const xEtiqueta = 340;
+  const xValor = DER - 8;
+  const fila = (etiqueta: string, valor: string, color = texto, f = font, size = 10) => {
+    page.drawText(etiqueta, { x: xEtiqueta, y, size, font: f, color: gris });
+    derecha(valor, xValor, y, size, f, color);
+    y -= 18;
+  };
+
+  // Nota a la izquierda
+  page.drawText('Esta proforma es un comprobante informativo de su compra', { x: M, y, size: 8.5, font, color: gris });
+  page.drawText('y no constituye factura.', { x: M, y: y - 11, size: 8.5, font, color: gris });
+
+  fila('Subtotal', bs(venta.subtotal));
+  if (venta.descuento > 0) fila('Descuento', `- ${bs(venta.descuento)}`, rojo);
+
+  y -= 12;
+  page.drawRectangle({ x: xEtiqueta - 12, y: y - 9, width: DER - xEtiqueta + 12, height: 30, color: azul });
+  page.drawText('TOTAL A PAGAR', { x: xEtiqueta, y: y + 1, size: 10, font: bold, color: blanco });
+  derecha(bs(venta.total), xValor, y + 1, 13, bold, blanco);
+  y -= 34;
+
+  fila('Monto recibido', bs(venta.montoRecibido));
+  fila('Cambio', bs(venta.cambio), verde, bold, 10.5);
+
+  // ========== PIE (en cada hoja) ==========
+  const contacto = [process.env.NEGOCIO_TELEFONO ? `Tel. ${process.env.NEGOCIO_TELEFONO}` : null, REMITENTE].filter(Boolean).join('  ·  ');
   const paginas = pdfDoc.getPages();
+
   paginas.forEach((pg, idx) => {
-    const footerY = 70;
-  
-    // Línea superior
-    pg.drawLine({
-      start: { x: 50, y: footerY + 30 },
-      end: { x: width - 50, y: footerY + 30 },
-      thickness: 1.5,
-      color: primaryColor,
-    });
-  
-    // Mensaje de agradecimiento
-    pg.drawText('¡Gracias por tu compra!', {
-      x: 50,
-      y: footerY + 10,
-      size: 10,
-      font: boldFont,
-      color: primaryColor,
-    });
-  
-    // Información de contacto
-    pg.drawText(`Email: ${process.env.GMAIL_EMAIL ?? 'micromercado.anita@gmail.com'}`, {
-      x: 50,
-      y: footerY - 5,
-      size: 8,
-      font: font,
-      color: mediumGray,
-    });
-  
-    // Dirección
-    pg.drawText('Cochabamba, Bolivia', {
-      x: 50,
-      y: footerY - 18,
-      size: 8,
-      font: font,
-      color: mediumGray,
-    });
-  
-    pg.drawText(`Página ${idx + 1} de ${paginas.length}`, {
-      x: width - 120,
-      y: footerY - 5,
-      size: 8,
-      font: font,
-      color: mediumGray,
-    });
+    pg.drawRectangle({ x: M, y: 74, width: DER - M, height: 1, color: lineaSuave });
+    pg.drawText('¡Gracias por su compra!', { x: M, y: 58, size: 10.5, font: bold, color: azul });
+    pg.drawText(limpiar(`MicroMercado Anita  ·  Cochabamba, Bolivia  ·  ${contacto}`), { x: M, y: 44, size: 8, font, color: gris });
+    const num = `Página ${idx + 1} de ${paginas.length}`;
+
+    pg.drawText(num, { x: DER - font.widthOfTextAtSize(num, 8), y: 44, size: 8, font, color: gris });
   });
 
   return await pdfDoc.save();

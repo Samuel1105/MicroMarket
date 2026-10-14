@@ -6,6 +6,7 @@ import React from "react";
 import { NotificacionItem } from "@/actions/notifications/notifications-action";
 import AccionAviso from "@/components/notifications/AccionAviso";
 import { useNotifications } from "@/hooks/useNotifications";
+import { getBoliviaTime } from "@/src/utils/date";
 
 export const ICONOS: Record<NotificacionItem["tipo"], { icon: string; caja: string; accion: string }> = {
   estante_vacio: { icon: "heroicons:archive-box-arrow-down", caja: "bg-primary-50 text-primary-600", accion: "Ir a sacar producto" },
@@ -13,7 +14,8 @@ export const ICONOS: Record<NotificacionItem["tipo"], { icon: string; caja: stri
 };
 
 export function haceCuanto(iso: string): string {
-  const min = Math.max(Math.round((Date.now() - new Date(iso).getTime()) / 60000), 0);
+  // Las fechas de la base son "hora de pared" de Bolivia guardada como UTC: se compara contra la misma hora de pared, no contra el reloj UTC
+  const min = Math.max(Math.round((getBoliviaTime().getTime() - new Date(iso).getTime()) / 60000), 0);
 
   if (min < 1) return "ahora";
   if (min < 60) return `hace ${min} min`;

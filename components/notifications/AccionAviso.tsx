@@ -38,7 +38,7 @@ export default function AccionAviso({ n, textoComprar = "Ir a comprar", textoSac
 
   if (n.tipo === "estante_vacio") {
     return n.enlace ? (
-      <Link className="text-xs font-semibold text-primary-600 hover:underline" href={n.enlace}>
+      <Link className="text-xs font-semibold text-primary-600 hover:underline" href={`${n.enlace}?producto=${n.productoID}`}>
         {textoSacar}
       </Link>
     ) : null;

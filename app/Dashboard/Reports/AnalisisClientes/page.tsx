@@ -1,323 +1,455 @@
 "use client";
 
-import { Chip, Spinner } from "@heroui/react";
-import { Icon } from "@iconify/react";
-import React, { useEffect, useMemo, useState } from "react";
+import { Chip } from "@heroui/react";
+import React, { useMemo, useState } from "react";
 
-import {
-  AnalisisClientesData,
-  getCustomerAnalysis,
-  SegmentoCliente,
-} from "@/actions/reportes/reporte-analisis-clientes";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
-import BaseChart from "@/components/dashboard/BaseChart";
-import ChartCard from "@/components/reports/ChartCard";
-import { COLORS, hBarOption } from "@/components/reports/chart-options";
-import Insights, { Insight } from "@/components/reports/Insights";
-import Kpi from "@/components/reports/Kpi";
-import ReportHeader, { ReportRange } from "@/components/reports/ReportHeader";
-import SplitBar from "@/components/reports/SplitBar";
-import { formatRangoEs, getCurrentMonthRange } from "@/src/utils/report-dates";
+import { getCatalogoClientes, getVentasDatos } from "@/actions/reportes/datos-reportes";
+import ChartPanel from "@/components/reports/kit/ChartPanel";
+import FilterBar, { FilterDim, Filters } from "@/components/reports/kit/FilterBar";
+import KpiAnimado from "@/components/reports/kit/KpiAnimado";
+import PaginaReporte from "@/components/reports/kit/PaginaReporte";
+import Segmented from "@/components/reports/kit/Segmented";
+import TablaBuscable, { Columna } from "@/components/reports/kit/TablaBuscable";
+import { crearCubos, fechaEs } from "@/components/reports/kit/fechas";
+import { opcionBarrasH, opcionColumnas, opcionDona, tablaDeSeries } from "@/components/reports/kit/opciones";
+import { useReporte } from "@/components/reports/kit/useReporte";
+import { expandir, filtrarVentas, FilaVenta } from "@/components/reports/kit/ventas";
+import { ReportRange } from "@/components/reports/ReportHeader";
+import { hoyBolivia } from "@/src/utils/date";
+import { getCurrentMonthRange } from "@/src/utils/report-dates";
 import { bs, num, pct, variacion } from "@/src/utils/report-format";
 
-const SEGMENTOS: Record<SegmentoCliente, { label: string; regla: string; color: "success" | "primary" | "warning" | "default" }> = {
-  vip: { label: "VIP", regla: "5 o más compras y Bs. 500 o más", color: "success" },
-  frecuente: { label: "Frecuente", regla: "3 o más compras", color: "primary" },
-  ocasional: { label: "Ocasional", regla: "2 compras", color: "warning" },
-  nuevo: { label: "Una compra", regla: "1 sola compra", color: "default" },
+/** Un cliente que no compra hace más de estos días se considera "en riesgo" */
+const DIAS_RIESGO = 30;
+
+type Segmento = "vip" | "frecuente" | "ocasional" | "una";
+const SEG: Record<Segmento, { label: string; color: string; chip: "success" | "primary" | "warning" | "default"; ayuda: string }> = {
+  vip: { label: "VIP", color: "#2a78d6", chip: "success", ayuda: "5 compras o más y Bs 500 o más" },
+  frecuente: { label: "Frecuente", color: "#1baf7a", chip: "primary", ayuda: "3 o 4 compras" },
+  ocasional: { label: "Ocasional", color: "#eda100", chip: "warning", ayuda: "2 compras" },
+  una: { label: "Una sola compra", color: "#a5adba", chip: "default", ayuda: "1 compra en el período" },
 };
+const SEGMENTOS = Object.keys(SEG) as Segmento[];
 
-const fechaEs = (iso: string) => iso.split("-").reverse().join("/");
+// Segmento del cliente (solo con compras del período): VIP = 5+ compras y Bs 500+ · Frecuente = 3–4 · Ocasional = 2 · Una sola = 1
+// "Se fue" = 2+ compras y más de DIAS_RIESGO (30) días sin comprar. Los umbrales son del sistema, no salen del documento.
+function segmentar(compras: number, gasto: number): Segmento {
+  if (compras >= 5 && gasto >= 500) return "vip";
+  if (compras >= 3) return "frecuente";
+  if (compras === 2) return "ocasional";
 
-function buildInsights(d: AnalisisClientesData): Insight[] {
-  const items: Insight[] = [];
-  const total = d.ventasIdentificadas + d.ventasGenerales;
-
-  if (total === 0) {
-    return [{ tone: "warn", text: `No hay ventas entre ${formatRangoEs(d.rango.start, d.rango.end)}. Prueba con otro rango.` }];
-  }
-
-  if (d.activos > 0) {
-    const pRec = (d.recurrentes / d.activos) * 100;
-
-    items.push({
-      tone: pRec >= 50 ? "good" : "info",
-      text: `${d.recurrentes} de tus ${d.activos} clientes ya te habían comprado antes (${pct(pRec, 0)}) y ${d.nuevos} ${
-        d.nuevos === 1 ? "es nuevo" : "son nuevos"
-      }. ${pRec < 50 ? "Vas ganando clientes nuevos pero fidelizas poco: ofrece algo para que vuelvan." : "Buena fidelidad."}`,
-    });
-  }
-
-  const vip = d.segmentos.find((s) => s.segmento === "vip");
-
-  if (vip && vip.clientes > 0 && d.ventasIdentificadas > 0) {
-    items.push({
-      tone: "info",
-      text: `${vip.clientes} ${vip.clientes === 1 ? "cliente VIP concentra" : "clientes VIP concentran"} el ${pct((vip.gasto / d.ventasIdentificadas) * 100, 0)} de lo que compran tus clientes registrados. Cuídalos: un aviso de ofertas o un pequeño descuento.`,
-    });
-  }
-
-  if (d.enRiesgo.length > 0) {
-    items.push({
-      tone: "warn",
-      text: `${d.enRiesgo.length} ${d.enRiesgo.length === 1 ? "cliente que compraba seguido no vuelve" : "clientes que compraban seguido no vuelven"} hace más de 30 días. Contáctalos: es más barato recuperar que conseguir uno nuevo.`,
-    });
-  }
-
-  if (total > 0 && d.ventasGenerales / total > 0.5) {
-    items.push({
-      tone: "info",
-      text: `El ${pct((d.ventasGenerales / total) * 100, 0)} de tus ventas se hizo como “cliente general”. Pide el carnet cuando puedas: sin datos no puedes saber quién te compra ni volver a contactarlo.`,
-    });
-  }
-
-  return items;
+  return "una";
 }
+
+type Cli = {
+  id: number;
+  nombre: string;
+  carnet: string;
+  compras: number;
+  gasto: number;
+  ticket: number;
+  ultima: string;
+  segmento: Segmento;
+  esNuevo: boolean;
+};
 
 export default function CustomerAnalysisReport() {
   const [range, setRange] = useState<ReportRange>(getCurrentMonthRange());
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<AnalisisClientesData | null>(null);
+  const ventasQ = useReporte(getVentasDatos, range);
+  const histQ = useReporte(getCatalogoClientes, range);
+  const data = ventasQ.data;
+  const loading = ventasQ.loading || histQ.loading;
+  const [filtros, setFiltros] = useState<Filters>({});
+  const [topN, setTopN] = useState<10 | 20>(10);
+  const [medida, setMedida] = useState<"bs" | "n">("bs");
 
-  useEffect(() => {
-    let cancelado = false;
+  const { filas, previas } = useMemo(() => (data ? expandir(data) : { filas: [], previas: [] }), [data]);
+  // Se filtra primero por lo que no depende de la persona; cliente y segmento se aplican sobre los clientes ya agrupados
+  const base = useMemo(() => filtrarVentas(filas, { ...filtros, cliente: [] }), [filas, filtros]);
+  const basePrev = useMemo(() => filtrarVentas(previas, { ...filtros, cliente: [] }), [previas, filtros]);
+  const cubos = useMemo(() => (data ? crearCubos(data.rango.start, data.rango.end) : null), [data]);
+  const historial = useMemo(() => new Map((histQ.data?.clientes ?? []).map((c) => [c.id, c])), [histQ.data]);
 
-    setLoading(true);
-    setError(null);
-    getCustomerAnalysis({ startDate: range.start, endDate: range.end })
-      .then((res) => {
-        if (cancelado) return;
-        if (res.success && res.data) setData(res.data);
-        else setError(res.error || "No se pudo cargar el reporte");
-      })
-      .catch(() => !cancelado && setError("No se pudo conectar con el servidor"))
-      .finally(() => !cancelado && setLoading(false));
+  const clientesTodos = useMemo<Cli[]>(() => {
+    const m = new Map<number, { f: FilaVenta[]; ventas: Set<number>; gasto: number; ultima: string }>();
 
-    return () => {
-      cancelado = true;
-    };
-  }, [range.start, range.end]);
+    for (const x of base) {
+      if (x.cliente.general) continue;
+      const a = m.get(x.cliente.id) ?? { f: [], ventas: new Set<number>(), gasto: 0, ultima: "" };
 
-  const insights = useMemo(() => (data ? buildInsights(data) : []), [data]);
-  const total = data ? data.ventasIdentificadas + data.ventasGenerales : 0;
-  const sinVentas = total === 0;
+      a.f.push(x);
+      a.ventas.add(x.venta);
+      a.gasto += x.importe;
+      if (x.dia > a.ultima) a.ultima = x.dia;
+      m.set(x.cliente.id, a);
+    }
 
-  const top = useMemo(
+    return Array.from(m.entries()).map(([id, a]) => {
+      const c = a.f[0].cliente;
+      const compras = a.ventas.size;
+
+      return {
+        id,
+        nombre: c.nombre,
+        carnet: c.carnet,
+        compras,
+        gasto: a.gasto,
+        ticket: a.gasto / compras,
+        ultima: a.ultima,
+        segmento: segmentar(compras, a.gasto),
+        esNuevo: (historial.get(id)?.primera ?? "9999") >= (data?.rango.start ?? ""),
+      };
+    });
+  }, [base, historial, data]);
+
+  const clientes = useMemo(
     () =>
-      data
-        ? hBarOption(
-            data.clientes.slice(0, 10).map((c) => ({ name: c.nombre, value: c.gasto })),
-            { color: COLORS.ventas },
-          )
-        : null,
-    [data],
+      clientesTodos
+        .filter((c) => (!filtros.cliente?.length || filtros.cliente.includes(String(c.id))) && (!filtros.segmento?.length || filtros.segmento.includes(c.segmento)))
+        .sort((a, b) => b.gasto - a.gasto),
+    [clientesTodos, filtros.cliente, filtros.segmento],
+  );
+  const idsVisibles = useMemo(() => new Set(clientes.map((c) => c.id)), [clientes]);
+
+  // Filas que quedan: de clientes visibles + (cliente general solo si no se filtró por cliente/segmento)
+  const hayFiltroPersona = !!(filtros.cliente?.length || filtros.segmento?.length);
+  const filasVisibles = useMemo(
+    () => base.filter((x) => (x.cliente.general ? !hayFiltroPersona : idsVisibles.has(x.cliente.id))),
+    [base, idsVisibles, hayFiltroPersona],
   );
 
-  const segmentos = useMemo(
+  const dims = useMemo<FilterDim[]>(() => {
+    const vend = new Map((data?.vendedores ?? []).map((v) => [String(v.id), v.nombre]));
+    const cli = new Map((data?.clientes ?? []).filter((c) => !c.general).map((c) => [String(c.id), c.nombre]));
+
+    return [
+      { key: "segmento", label: "Tipo de cliente", icon: "heroicons:star", options: SEGMENTOS, show: (v) => SEG[v as Segmento].label },
+      { key: "cliente", label: "Cliente", icon: "heroicons:users", options: Array.from(cli.keys()).sort((a, b) => (cli.get(a) ?? "").localeCompare(cli.get(b) ?? "")), show: (v) => cli.get(v) ?? v },
+      { key: "vendedor", label: "Vendedor", icon: "heroicons:user", options: Array.from(vend.keys()), show: (v) => vend.get(v) ?? v },
+      { key: "categoria", label: "Categoría", icon: "heroicons:tag", options: Array.from(new Set((data?.productos ?? []).map((p) => p.categoria))).sort((a, b) => a.localeCompare(b)) },
+      { key: "producto", label: "Producto", icon: "heroicons:cube", options: Array.from(new Set((data?.productos ?? []).map((p) => p.nombre))).sort((a, b) => a.localeCompare(b)) },
+    ];
+  }, [data]);
+
+  const alternar = (clave: string, valor: string) =>
+    setFiltros((f) => {
+      const actual = f[clave] ?? [];
+      const n = { ...f };
+      const lista = actual.includes(valor) ? actual.filter((x) => x !== valor) : [...actual, valor];
+
+      if (lista.length) n[clave] = lista;
+      else delete n[clave];
+
+      return n;
+    });
+
+  // ── Cifras ──
+  const importeIdent = filasVisibles.filter((x) => !x.cliente.general).reduce((s, x) => s + x.importe, 0);
+  const importeTotal = filasVisibles.reduce((s, x) => s + x.importe, 0);
+  const comprasIdent = clientes.reduce((s, c) => s + c.compras, 0);
+  const activosPrev = new Set(basePrev.filter((x) => !x.cliente.general).map((x) => x.cliente.id)).size;
+  const nuevos = clientes.filter((c) => c.esNuevo).length;
+  const hoy = hoyBolivia();
+  const dias = (d: string) => Math.round((new Date(`${hoy}T00:00:00Z`).getTime() - new Date(`${d}T00:00:00Z`).getTime()) / 86400000);
+
+  const enRiesgo = useMemo(
     () =>
-      data
-        ? hBarOption(
-            data.segmentos
-              .filter((s) => s.clientes > 0)
-              .map((s) => ({ name: `${SEGMENTOS[s.segmento].label} (${s.clientes})`, value: s.gasto })),
-            { color: COLORS.traslado },
-          )
-        : null,
-    [data],
+      (histQ.data?.clientes ?? [])
+        .filter((c) => c.compras >= 2 && dias(c.ultima) > DIAS_RIESGO && (!filtros.cliente?.length || filtros.cliente.includes(String(c.id))))
+        .map((c) => ({ ...c, sinComprar: dias(c.ultima) }))
+        .sort((a, b) => b.gasto - a.gasto),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [histQ.data, filtros.cliente, hoy],
   );
+
+  // ── Gráficos ──
+  const porSegmento = SEGMENTOS.map((s) => ({ s, n: clientes.filter((c) => c.segmento === s).length, gasto: clientes.filter((c) => c.segmento === s).reduce((t, c) => t + c.gasto, 0) }));
+  const opcionSeg = useMemo(
+    () =>
+      opcionDona({
+        datos: porSegmento.map((x) => ({ name: SEG[x.s].label, value: x.n, color: SEG[x.s].color })),
+        centro: { texto: num(clientes.length), sub: "clientes" },
+        fmt: (n) => `${num(n)} ${n === 1 ? "cliente" : "clientes"}`,
+        seleccion: (filtros.segmento ?? []).map((s) => SEG[s as Segmento].label),
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [clientes, filtros.segmento],
+  );
+
+  const top = useMemo(() => clientes.slice(0, topN), [clientes, topN]);
+  const opcionTop = useMemo(
+    () =>
+      opcionBarrasH({
+        nombres: top.map((c) => c.nombre),
+        series: [{ name: "Gastó", color: "#2a78d6", valores: top.map((c) => (medida === "bs" ? c.gasto : c.compras)) }],
+        colorPorBarra: top.map((c) => SEG[c.segmento].color),
+        fmt: (n) => (medida === "bs" ? bs(n, 0) : `${num(n)} ${n === 1 ? "compra" : "compras"}`),
+        seleccion: (filtros.cliente ?? []).map((id) => clientesTodos.find((c) => String(c.id) === id)?.nombre ?? ""),
+        pie: (nombre) => {
+          const c = top.find((x) => x.nombre === nombre);
+
+          return c ? `${SEG[c.segmento].label} · ${c.compras} compras · ticket ${bs(c.ticket, 0)}` : undefined;
+        },
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [top, medida, filtros.cliente],
+  );
+
+  const ventasDiarias = useMemo(() => {
+    if (!cubos) return [];
+    const con = cubos.claves.map(() => 0);
+    const sin = cubos.claves.map(() => 0);
+    const visto = new Set<number>();
+
+    for (const x of filasVisibles) {
+      const i = cubos.indice(x.dia);
+
+      if (medida === "bs") (x.cliente.general ? sin : con)[i] += x.importe;
+      else if (!visto.has(x.venta)) {
+        visto.add(x.venta);
+        (x.cliente.general ? sin : con)[i] += 1;
+      }
+    }
+
+    return [
+      { name: "Con carnet", color: "#2a78d6", data: con },
+      { name: "Cliente general (sin datos)", color: "#a5adba", data: sin },
+    ];
+  }, [cubos, filasVisibles, medida]);
+
+  const opcionVentas = useMemo(
+    () => (cubos ? opcionColumnas({ etiquetas: cubos.etiquetas, series: ventasDiarias, apilado: true, fmt: (n) => (medida === "bs" ? bs(n, 0) : `${num(n)} ventas`) }) : {}),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cubos, ventasDiarias, medida],
+  );
+
+  const nuevosVsRecurrentes = useMemo(() => {
+    if (!cubos) return [];
+    const nuevo = cubos.claves.map(() => new Set<number>());
+    const recurrente = cubos.claves.map(() => new Set<number>());
+    const esNuevo = new Map(clientesTodos.map((c) => [c.id, c.esNuevo]));
+
+    for (const x of filasVisibles) {
+      if (x.cliente.general) continue;
+      (esNuevo.get(x.cliente.id) ? nuevo : recurrente)[cubos.indice(x.dia)].add(x.cliente.id);
+    }
+
+    return [
+      { name: "Clientes nuevos", color: "#1baf7a", data: nuevo.map((s) => s.size) },
+      { name: "Ya compraban antes", color: "#2a78d6", data: recurrente.map((s) => s.size) },
+    ];
+  }, [cubos, filasVisibles, clientesTodos]);
+
+  const opcionNuevos = useMemo(
+    () => (cubos ? opcionColumnas({ etiquetas: cubos.etiquetas, series: nuevosVsRecurrentes, apilado: true, fmt: (n) => `${num(n)} ${n === 1 ? "cliente" : "clientes"}` }) : {}),
+    [cubos, nuevosVsRecurrentes],
+  );
+
+  const columnas: Columna<Cli>[] = [
+    { clave: "nombre", titulo: "Cliente", valor: (c) => c.nombre, celda: (c) => <span className="font-semibold">{c.nombre}</span> },
+    { clave: "carnet", titulo: "Carnet", valor: (c) => c.carnet },
+    { clave: "gasto", titulo: "Gastó", alinear: "der", valor: (c) => c.gasto, celda: (c) => <b>{bs(c.gasto, 0)}</b> },
+    { clave: "compras", titulo: "Compras", alinear: "der", valor: (c) => c.compras },
+    { clave: "ticket", titulo: "Ticket", alinear: "der", valor: (c) => c.ticket, celda: (c) => bs(c.ticket, 0) },
+    { clave: "ultima", titulo: "Última compra", alinear: "der", valor: (c) => c.ultima, celda: (c) => fechaEs(c.ultima) },
+    {
+      clave: "segmento",
+      titulo: "Tipo",
+      valor: (c) => SEG[c.segmento].label,
+      celda: (c) => (
+        <span className="inline-flex items-center gap-1.5 flex-wrap">
+          <Chip color={SEG[c.segmento].chip} size="sm" variant="flat">
+            {SEG[c.segmento].label}
+          </Chip>
+          {c.esNuevo && (
+            <Chip color="success" size="sm" variant="dot">
+              nuevo
+            </Chip>
+          )}
+        </span>
+      ),
+    },
+  ];
+
+  const sinDatos = filasVisibles.length === 0;
 
   return (
-    <ProtectedRoute allowedRoles={[1, 4]}>
-      <div className="p-4 md:p-8 space-y-5">
-        <ReportHeader
-          crumb="Análisis de clientes"
-          question="¿Quiénes son mis mejores clientes, cuántos vuelven y a quiénes debo recuperar?"
-          range={range}
-          title="Análisis de clientes"
-          onRangeChange={setRange}
-        />
+    <PaginaReporte
+      cargando={loading}
+      crumb="Análisis de clientes"
+      error={ventasQ.error ?? histQ.error}
+      listo={!!data && !!cubos && !!histQ.data}
+      onRango={setRange}
+      pregunta="¿Quiénes compran, cuánto y a quién conviene recuperar?"
+      rango={range}
+      roles={[1, 4]}
+      titulo="Análisis de clientes"
+    >
+      {data && cubos && (
+        <>
+          <FilterBar dims={dims} value={filtros} onChange={setFiltros}>
+            <span className="text-xs text-gray-500 hidden sm:inline">Medir en</span>
+            <Segmented
+              label="Medir en"
+              options={[
+                { value: "bs", label: "Bolivianos" },
+                { value: "n", label: "N.º de compras" },
+              ]}
+              value={medida}
+              onChange={setMedida}
+            />
+          </FilterBar>
 
-        {error && <div className="rounded-2xl border border-red-200 bg-red-50 text-red-700 text-sm p-4">{error}</div>}
-
-        {loading && !data ? (
-          <div className="flex justify-center py-24">
-            <Spinner label="Calculando..." size="lg" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+            <KpiAnimado
+              definition="Clientes con carnet que compraron en el período."
+              delta={variacion(clientes.length, activosPrev)}
+              formato={(n) => String(Math.round(n))}
+              hint="con compras"
+              icon="heroicons:users"
+              label="Clientes activos"
+              valor={clientes.length}
+            />
+            <KpiAnimado
+              definition="Clientes cuya primera compra en el negocio fue dentro del período."
+              formato={(n) => String(Math.round(n))}
+              hint={`${clientes.length - nuevos} ya compraban antes`}
+              icon="heroicons:user-plus"
+              label="Clientes nuevos"
+              tone="success"
+              valor={nuevos}
+            />
+            <KpiAnimado
+              definition="Lo que deja cada compra de un cliente con carnet."
+              formato={(n) => bs(n, 0)}
+              hint="por compra"
+              icon="heroicons:shopping-bag"
+              label="Ticket"
+              tone="secondary"
+              valor={comprasIdent ? importeIdent / comprasIdent : 0}
+            />
+            <KpiAnimado
+              definition="Parte de lo vendido que se hizo a clientes con carnet. El resto fue a «cliente general» y no se puede analizar."
+              formato={(n) => pct(n, 0)}
+              hint="el resto es cliente general"
+              icon="heroicons:identification"
+              label="Con carnet"
+              tone="neutral"
+              valor={importeTotal ? (importeIdent / importeTotal) * 100 : 0}
+            />
+            <KpiAnimado
+              definition={`Clientes que compraron 2 veces o más y llevan más de ${DIAS_RIESGO} días sin volver.`}
+              formato={(n) => String(Math.round(n))}
+              hint={`más de ${DIAS_RIESGO} días sin comprar`}
+              icon="heroicons:exclamation-triangle"
+              label="Se fueron"
+              tone={enRiesgo.length ? "danger" : "success"}
+              valor={enRiesgo.length}
+            />
           </div>
-        ) : (
-          data && (
-            <div className={`space-y-5 mt-4 transition-opacity ${loading ? "opacity-50" : ""}`}>
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                <Kpi
-                  definition="Clientes registrados que compraron al menos una vez en el período. No incluye al “cliente general”."
-                  delta={variacion(data.activos, data.activosAnterior)}
-                  hint={`${data.registrados} ${data.registrados === 1 ? "cliente se registró" : "clientes se registraron"} en el período`}
-                  icon="heroicons:users"
-                  label="Clientes que compraron"
-                  value={String(data.activos)}
+
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+            <ChartPanel
+              empty={clientes.length === 0}
+              height={330}
+              option={opcionSeg}
+              question="¿Qué tipo de clientes tienes? Haz clic en un color para filtrar."
+              stale={loading}
+              table={{
+                head: ["Tipo", "Clientes", "Gastaron", "Cómo se calcula"],
+                rows: porSegmento.map((x) => [SEG[x.s].label, x.n, bs(x.gasto, 0), SEG[x.s].ayuda]),
+              }}
+              title="Tipos de cliente"
+              onClick={(p) => {
+                const s = SEGMENTOS.find((x) => SEG[x].label === p.name);
+
+                if (s) alternar("segmento", s);
+              }}
+            />
+            <ChartPanel
+              className="xl:col-span-2"
+              empty={clientes.length === 0}
+              height={Math.max(330, top.length * 34 + 40)}
+              option={opcionTop}
+              question="¿Quiénes son los que más compran? El color es su tipo. Haz clic en una barra para ver solo a ese cliente."
+              stale={loading}
+              table={{
+                head: ["Cliente", "Gastó", "Compras", "Tipo"],
+                rows: top.map((c) => [c.nombre, bs(c.gasto, 0), c.compras, SEG[c.segmento].label]),
+              }}
+              title="Los que más compran"
+              tools={
+                <Segmented
+                  label="Cantidad a mostrar"
+                  options={[
+                    { value: 10, label: "Top 10" },
+                    { value: 20, label: "Top 20" },
+                  ]}
+                  value={topN}
+                  onChange={setTopN}
                 />
-                <Kpi
-                  definition="Nuevos: su primera compra fue en este período. Recurrentes: ya te habían comprado antes."
-                  hint={`${data.nuevos} nuevos · ${data.recurrentes} recurrentes`}
-                  icon="heroicons:arrow-path"
-                  label="Clientes que vuelven"
-                  tone="secondary"
-                  value={data.activos ? pct((data.recurrentes / data.activos) * 100, 0) : "—"}
-                />
-                <Kpi
-                  definition="Lo que gasta en promedio un cliente registrado en cada compra."
-                  delta={variacion(data.ticketPromedio, data.ticketPromedioAnterior)}
-                  hint="Por compra, solo clientes registrados"
-                  icon="heroicons:shopping-bag"
-                  label="Compra promedio"
-                  value={bs(data.ticketPromedio)}
-                />
-                <Kpi
-                  definition="Clientes con historial que compraron 2 o más veces pero llevan más de 30 días sin volver."
-                  hint="Más de 30 días sin comprar"
-                  icon="heroicons:user-minus"
-                  label="Clientes en riesgo"
-                  tone={data.enRiesgo.length ? "danger" : "success"}
-                  value={String(data.enRiesgo.length)}
-                />
-              </div>
+              }
+              onClick={(p) => {
+                const c = clientesTodos.find((x) => x.nombre === p.name);
 
-              <Insights items={insights} />
+                if (c) alternar("cliente", String(c.id));
+              }}
+            />
+          </div>
 
-              {!sinVentas && (
-                <div className="rounded-2xl bg-white border border-default-200 shadow-sm p-5">
-                  <h3 className="font-bold text-base">¿Sé quién me compra?</h3>
-                  <p className="text-xs text-gray-500 mb-4">
-                    Ventas a clientes registrados frente a ventas rápidas como “cliente general”.
-                  </p>
-                  <SplitBar
-                    remainder={{
-                      label: "Cliente general",
-                      value: data.ventasGenerales,
-                      color: COLORS.gris,
-                      note: "Sin datos: no puedes volver a contactarlos",
-                    }}
-                    segments={[
-                      {
-                        label: "Clientes registrados",
-                        value: data.ventasIdentificadas,
-                        color: COLORS.ventas,
-                        note: "Sabes quiénes son",
-                      },
-                    ]}
-                    total={total}
-                    totalLabel="Ventas del período"
-                  />
-                </div>
-              )}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            <ChartPanel
+              empty={sinDatos}
+              height={300}
+              option={opcionVentas}
+              question="¿Cuánto se vende a clientes con carnet y cuánto a «cliente general»? Registrar al cliente permite conocerlo."
+              stale={loading}
+              table={tablaDeSeries(cubos.porSemana ? "Semana" : "Día", cubos.etiquetas, ventasDiarias, (n) => (medida === "bs" ? bs(n, 0) : num(n)))}
+              title="Con carnet o sin datos"
+            />
+            <ChartPanel
+              empty={clientes.length === 0}
+              height={300}
+              option={opcionNuevos}
+              question={`¿Llegan clientes nuevos o compran los de siempre? (clientes distintos por ${cubos.porSemana ? "semana" : "día"})`}
+              stale={loading}
+              table={tablaDeSeries(cubos.porSemana ? "Semana" : "Día", cubos.etiquetas, nuevosVsRecurrentes, (n) => String(n))}
+              title="Nuevos y de siempre"
+            />
+          </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                <ChartCard
-                  empty={data.clientes.length === 0}
-                  subtitle="Quién gastó más en el período"
-                  title="Mejores clientes"
-                >
-                  {top && <BaseChart height={`${Math.max(220, Math.min(10, data.clientes.length) * 38 + 20)}px`} option={top} />}
-                </ChartCard>
+          <TablaBuscable
+            clave={(c) => String(c.id)}
+            columnas={columnas}
+            filas={clientes}
+            orden={{ clave: "gasto", desc: true }}
+            porPagina={10}
+            subtitulo="Clientes con carnet que compraron en el período."
+            titulo="Clientes del período"
+            buscar={(c) => `${c.nombre} ${c.carnet} ${SEG[c.segmento].label}`}
+          />
 
-                <ChartCard
-                  empty={data.clientes.length === 0}
-                  subtitle="Cuánto gasta cada tipo de cliente (entre paréntesis, cuántos son)"
-                  title="¿Quién sostiene mis ventas?"
-                >
-                  {segmentos && <BaseChart height="260px" option={segmentos} />}
-                </ChartCard>
-              </div>
-
-              {data.enRiesgo.length > 0 && (
-                <div className="space-y-3">
-                  <div className="px-1">
-                    <h3 className="font-bold text-base">Clientes que dejaron de venir</h3>
-                    <p className="text-xs text-gray-500">
-                      Compraban seguido y llevan más de 30 días sin volver. Los que más te compraron, primero.
-                    </p>
-                  </div>
-                  {data.enRiesgo.map((c) => (
-                    <div key={c.id} className="rounded-2xl border border-default-200 bg-white shadow-sm p-4 sm:p-5">
-                      <div className="flex items-start gap-4">
-                        <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                          <Icon height="22" icon="heroicons:user-minus" width="22" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-semibold">{c.nombre}</p>
-                            <Chip color="warning" size="sm" variant="flat">
-                              {c.diasSinComprar} días sin comprar
-                            </Chip>
-                          </div>
-                          <p className="text-sm text-gray-600 mt-1">
-                            Última compra el {fechaEs(c.ultimaCompra)} · {c.comprasHistoricas} compras en total ·{" "}
-                            {bs(c.gastoHistorico, 0)} gastados · CI {c.carnet}
-                          </p>
-                          {c.correo && (
-                            <p className="text-sm text-secondary-800 bg-secondary-50 rounded-lg px-3 py-2 mt-2">
-                              <b>Qué hacer:</b> escríbele a {c.correo} con una oferta de sus productos habituales.
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {data.clientes.length > 0 && (
-                <div className="space-y-3">
-                  <div className="px-1">
-                    <h3 className="font-bold text-base">Clientes del período</h3>
-                    <p className="text-xs text-gray-500">De quien más gastó a quien menos.</p>
-                  </div>
-                  {data.clientes.map((c) => (
-                    <div
-                      key={c.id}
-                      className="rounded-2xl border border-default-200 bg-white shadow-sm p-4 flex items-center gap-4"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-semibold">{c.nombre}</p>
-                          <Chip color={SEGMENTOS[c.segmento].color} size="sm" variant="flat">
-                            {SEGMENTOS[c.segmento].label}
-                          </Chip>
-                          {c.esNuevo && (
-                            <Chip color="secondary" size="sm" variant="flat">
-                              Nuevo
-                            </Chip>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-600 mt-0.5">
-                          {c.compras} {c.compras === 1 ? "compra" : "compras"} · {bs(c.ticket)} por compra · última el{" "}
-                          {fechaEs(c.ultimaCompra)}
-                        </p>
-                      </div>
-                      <p className="font-bold tabular-nums shrink-0">{bs(c.gasto)}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="rounded-2xl bg-white border border-default-200 shadow-sm p-5">
-                <h3 className="font-bold text-base mb-2">Cómo se clasifica a un cliente</h3>
-                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm text-gray-600">
-                  {(Object.keys(SEGMENTOS) as SegmentoCliente[]).map((k) => (
-                    <li key={k}>
-                      <b className="text-gray-800">{SEGMENTOS[k].label}:</b> {SEGMENTOS[k].regla} en el período
-                    </li>
-                  ))}
-                </ul>
-                <p className="text-xs text-gray-500 mt-3">
-                  Las ventas hechas como “cliente general” no se analizan por cliente. Clientes registrados en el período:{" "}
-                  {num(data.registrados)}.
-                </p>
-              </div>
-            </div>
-          )
-        )}
-      </div>
-    </ProtectedRoute>
+          <TablaBuscable
+            clave={(c) => String(c.id)}
+            columnas={[
+              { clave: "nombre", titulo: "Cliente", valor: (c) => c.nombre, celda: (c) => <span className="font-semibold">{c.nombre}</span> },
+              { clave: "carnet", titulo: "Carnet", valor: (c) => c.carnet },
+              { clave: "correo", titulo: "Correo", valor: (c) => c.correo },
+              { clave: "sin", titulo: "Días sin comprar", alinear: "der", valor: (c) => c.sinComprar, celda: (c) => <span className="text-red-600 font-semibold">{c.sinComprar}</span> },
+              { clave: "ultima", titulo: "Última compra", alinear: "der", valor: (c) => c.ultima, celda: (c) => fechaEs(c.ultima) },
+              { clave: "compras", titulo: "Compras antes", alinear: "der", valor: (c) => c.compras },
+              { clave: "gasto", titulo: "Gastó en total", alinear: "der", valor: (c) => c.gasto, celda: (c) => bs(c.gasto, 0) },
+            ]}
+            filas={enRiesgo}
+            orden={{ clave: "gasto", desc: true }}
+            porPagina={8}
+            subtitulo={`Compraron 2 veces o más y llevan más de ${DIAS_RIESGO} días sin volver. Contáctalos para recuperarlos.`}
+            titulo="Clientes que dejaron de comprar"
+            vacio="Ningún cliente habitual dejó de comprar. ¡Buen trabajo!"
+            buscar={(c) => `${c.nombre} ${c.carnet} ${c.correo}`}
+          />
+        </>
+      )}
+    </PaginaReporte>
   );
 }

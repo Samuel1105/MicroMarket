@@ -139,6 +139,32 @@ export async function getSolicitudesPendientes(): Promise<SolicitudResumen[]> {
 }
 
 /** Datos para llenar el formulario de compra desde una solicitud */
+/**
+ * Cómo se compró cada producto la última vez (unidad, cantidad y precio unitario), para que al armar una compra
+ * desde un aviso Compras solo corrija lo que cambió (normalmente, el precio). Cuenta compras recibidas y por recibir.
+ */
+export async function getUltimaCompraPorProducto(productoIDs: number[]) {
+  const mapa: Record<number, { unidadMedidaID: number; cantidad: number; precioUnitario: number }> = {};
+
+  try {
+    if (productoIDs.length === 0) return mapa;
+    const filas = await prisma.detalleCompra.findMany({
+      where: { estado: 1, productoID: { in: productoIDs }, Compra: { estado: { in: [1, 3] } } },
+      orderBy: { id: "desc" },
+      select: { productoID: true, unidadMedidaID: true, cantidadComprada: true, precioUnitario: true },
+    });
+
+    for (const f of filas) {
+      if (mapa[f.productoID]) continue; // la primera fila de cada producto es la más reciente
+      mapa[f.productoID] = { unidadMedidaID: f.unidadMedidaID, cantidad: Number(f.cantidadComprada), precioUnitario: Number(f.precioUnitario) };
+    }
+  } catch (error) {
+    console.error("Error al leer la última compra de los productos:", error);
+  }
+
+  return mapa;
+}
+
 export async function getSolicitudParaCompra(id: number) {
   try {
     const s = await prisma.solicitudCompra.findFirst({

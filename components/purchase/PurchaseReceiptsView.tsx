@@ -187,8 +187,8 @@ export default function PurchaseReceiptsView() {
                     <thead>
                       <tr className="text-left text-[11px] uppercase tracking-wide text-gray-400 border-b border-default-200">
                         <th className="py-2 pr-3 font-medium">Producto</th>
-                        <th className="py-2 pr-3 font-medium w-28">Pedido</th>
-                        <th className="py-2 pr-3 font-medium w-32">Recibido</th>
+                        <th className="py-2 pr-3 font-medium w-36">Pedido</th>
+                        <th className="py-2 pr-3 font-medium w-44">Lo que llegó</th>
                         <th className="py-2 pr-3 font-medium w-44">Lote</th>
                         <th className="py-2 pr-3 font-medium w-40">Vence</th>
                       </tr>
@@ -212,9 +212,15 @@ export default function PurchaseReceiptsView() {
                               )}
                             </td>
                             <td className="py-2.5 pr-3 whitespace-nowrap">
-                              {cant(l.cantidadPedida)} {l.unidad}
+                              <p className="font-semibold">
+                                {cant(l.cantidadPedida)} {l.unidad}
+                              </p>
+                              {Math.abs(l.factorBase - 1) > 0.0001 && (
+                                <p className="text-xs text-gray-500">= {cant(l.cantidadPedida * l.factorBase)} unidades</p>
+                              )}
                             </td>
                             <td className="py-2.5 pr-3">
+                              <p className="mb-1 text-[11px] text-gray-500">¿Cuántas {l.unidad.toLowerCase()} llegaron?</p>
                               <input
                                 aria-label={`Recibido de ${l.producto}`}
                                 className={`${CAMPO} ${d.problemas.length ? "border-red-400" : d.falta > 0.0001 ? "border-amber-400" : "border-default-200"}`}
@@ -225,6 +231,9 @@ export default function PurchaseReceiptsView() {
                                 value={f.recibida}
                                 onChange={(e) => cambiar(i, { recibida: e.target.value })}
                               />
+                              {Math.abs(l.factorBase - 1) > 0.0001 && Number.isFinite(d.n) && (
+                                <p className="mt-1 text-xs text-gray-500">= {cant(d.n * l.factorBase)} unidades</p>
+                              )}
                             </td>
                             <td className="py-2.5 pr-3">
                               <input aria-label={`Lote de ${l.producto}`} className={`${CAMPO} border-default-200`} value={f.lote} onChange={(e) => cambiar(i, { lote: e.target.value })} />

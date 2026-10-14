@@ -11,7 +11,7 @@ import StatCard from '@/components/ui/StatCard';
 import DateRangeFilter from '@/components/ui/DateRangeFilter';
 import { ESTADO_ANULADO } from '@/src/lib/anulaciones';
 import { ESTADO_COMPRA_POR_RECIBIR } from '@/src/lib/compras';
-import { formatShortDate, inDateRange, inPeriod, Period, PERIOD_OPTIONS } from '@/src/utils/period';
+import { formatShortDate, formatTime, inDateRange, inPeriod, Period, PERIOD_OPTIONS } from '@/src/utils/period';
 
 import PurchaseDetailModal from './PurchaseDetailModal';
 
@@ -45,6 +45,11 @@ interface Purchase {
   total: number;
   estado: number;
   anulacion?: { motivo: string; usuario: string; fecha: string } | null;
+  /** Quién registró la compra */
+  registradaPor?: string;
+  fechaHora?: string | null;
+  /** Quién validó la recepción en el almacén */
+  recepcion?: { usuario: string; fecha: string | null } | null;
   bloqueada?: boolean;
   detalles: PurchaseDetail[];
 }
@@ -247,7 +252,7 @@ export default function PurchaseHistoryView() {
                     <Icon height="22" icon="heroicons:shopping-cart" width="22" />
                   </div>
                   <div className="min-w-0">
-                    <p className="font-semibold text-sm flex items-center gap-2">
+                    <div className="font-semibold text-sm flex items-center gap-2">
                       {purchase.numeroCompra}
                       {purchase.estado === ESTADO_ANULADO && (
                         <Chip color="danger" size="sm" variant="flat">
@@ -259,8 +264,11 @@ export default function PurchaseHistoryView() {
                           Por recibir
                         </Chip>
                       )}
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {formatShortDate(purchase.fecha)}
+                      {purchase.fechaHora ? ` · ${formatTime(purchase.fechaHora)}` : ''}
                     </p>
-                    <p className="text-xs text-gray-500">{formatShortDate(purchase.fecha)}</p>
                   </div>
                 </div>
 
@@ -270,10 +278,13 @@ export default function PurchaseHistoryView() {
                     <p className="font-medium truncate">{purchase.proveedor.nombre}</p>
                   </div>
                   <div>
-                    <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-0.5">Productos</p>
-                    <Chip size="sm" variant="flat">
-                      {purchase.detalles.length} · {getTotalItems(purchase)} unid.
-                    </Chip>
+                    <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-0.5">Qué se compró</p>
+                    <p className="text-sm font-medium leading-tight">
+                      {purchase.detalles.length} {purchase.detalles.length === 1 ? 'producto' : 'productos'}
+                    </p>
+                    <p className="text-xs text-gray-500 line-clamp-2">
+                      {purchase.detalles.map((d) => `${d.cantidad} ${d.unidad.replace(/\s*\(.*\)/, '')} de ${d.producto}`).join(' · ')}
+                    </p>
                   </div>
                   <div>
                     <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-0.5">Descuento</p>
@@ -299,6 +310,36 @@ export default function PurchaseHistoryView() {
                 >
                   Ver detalle
                 </Button>
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-default-100 pt-3 text-xs text-gray-600">
+                {purchase.registradaPor && (
+                  <span className="flex items-center gap-1">
+                    <Icon height="14" icon="heroicons:user" width="14" />
+                    Registró: <strong className="font-semibold text-gray-800">{purchase.registradaPor}</strong>
+                  </span>
+                )}
+                {purchase.recepcion && (
+                  <span className="flex items-center gap-1">
+                    <Icon height="14" icon="heroicons:clipboard-document-check" width="14" />
+                    Recibió: <strong className="font-semibold text-gray-800">{purchase.recepcion.usuario}</strong>
+                    {purchase.recepcion.fecha && <span className="text-gray-400">· {formatShortDate(purchase.recepcion.fecha)}</span>}
+                  </span>
+                )}
+                {purchase.estado === ESTADO_COMPRA_POR_RECIBIR && (
+                  <span className="flex items-center gap-1 text-amber-700">
+                    <Icon height="14" icon="heroicons:clock" width="14" />
+                    Esperando que el almacén valide la recepción
+                  </span>
+                )}
+                {purchase.estado === ESTADO_ANULADO && (
+                  <span className="flex items-center gap-1 font-medium text-red-700">
+                    <Icon height="14" icon="heroicons:no-symbol" width="14" />
+                    {purchase.anulacion
+                      ? `Anulada por ${purchase.anulacion.usuario} el ${formatShortDate(purchase.anulacion.fecha)} · ${purchase.anulacion.motivo}`
+                      : 'Anulada (sin registro de motivo)'}
+                  </span>
+                )}
               </div>
             </div>
           ))}

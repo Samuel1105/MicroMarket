@@ -18,6 +18,14 @@ export type InventoryMovement = {
   /** Proveedor (entrada) o cliente (salida) */
   contraparte: string | null;
   codigoBarras: string | null;
+  /** Quién lo hizo: quien validó la recepción, sacó al estante, vendió o ajustó */
+  usuario: string | null;
+  /** Vencimiento del lote (ISO), si tiene */
+  vence: string | null;
+  /** Nombre completo de la unidad (la abreviatura va en `unidad`) */
+  unidadNombre: string;
+  /** Observación del movimiento (ajustes y traslados) */
+  detalle: string | null;
   /** true si es el ingreso de una compra que se anuló (queda en el historial pero ya no suma) */
   anulado?: boolean;
   /** Solo en los ajustes de inventario */
@@ -49,7 +57,7 @@ export async function getInventoryMovements() {
           usuarioIdRegistro: true,
           Producto: { select: { nombre: true, Categoria: { select: { nombre: true } } } },
           UnidadMedida: { select: { abreviatura: true, nombre: true } },
-          Lote: { select: { numeroLote: true } },
+          Lote: { select: { numeroLote: true, fechaVencimiento: true } },
         },
         orderBy: { fechaRegistro: "desc" },
         take: LIMITE,
@@ -64,13 +72,14 @@ export async function getInventoryMovements() {
             select: {
               Producto: { select: { nombre: true, Categoria: { select: { nombre: true } } } },
               UnidadMedida: { select: { abreviatura: true, nombre: true } },
-              Lote: { select: { numeroLote: true } },
+              Lote: { select: { numeroLote: true, fechaVencimiento: true } },
             },
           },
           Venta: {
             select: {
               numeroVenta: true,
               fechaVenta: true,
+              usuarioRegistro: true,
               Cliente: { select: { nombre: true } },
             },
           },
@@ -96,8 +105,10 @@ export async function getInventoryMovements() {
       : [];
     const compraMap = new Map(compras.map((c) => [c.id, c]));
 
-    // Quién hizo cada ajuste
-    const usuarioIds = Array.from(new Set(movimientos.filter((m) => m.tipoMovimiento === 3 || m.tipoMovimiento === 4).map((m) => m.usuarioIdRegistro)));
+    // Quién hizo cada movimiento (recepción, traslado, ajuste o venta)
+    const usuarioIds = Array.from(
+      new Set([...movimientos.map((m) => m.usuarioIdRegistro), ...ventas.map((v) => v.Venta.usuarioRegistro)]),
+    );
     const personas = usuarioIds.length
       ? await prisma.persona.findMany({ where: { id: { in: usuarioIds } }, select: { id: true, primerNombre: true, apellidoPaterno: true } })
       : [];
@@ -124,6 +135,10 @@ export async function getInventoryMovements() {
           referencia: null,
           contraparte: null,
           codigoBarras: null,
+          usuario: nombres.get(m.usuarioIdRegistro) ?? null,
+          vence: m.Lote?.fechaVencimiento ? m.Lote.fechaVencimiento.toISOString() : null,
+          unidadNombre: m.UnidadMedida.nombre,
+          detalle: m.observaciones ?? null,
           ajuste: {
             ubicacion: m.tipoMovimiento === 3 ? "almacen" : "estante",
             motivo: motivo || "Ajuste",
@@ -149,6 +164,10 @@ export async function getInventoryMovements() {
         referencia: esEntrada ? (compra?.numeroCompra ?? null) : null,
         contraparte: esEntrada ? (compra?.Proveedor.nombre ?? null) : null,
         codigoBarras: null,
+        usuario: nombres.get(m.usuarioIdRegistro) ?? null,
+        vence: m.Lote?.fechaVencimiento ? m.Lote.fechaVencimiento.toISOString() : null,
+        unidadNombre: m.UnidadMedida.nombre,
+        detalle: m.observaciones ?? null,
       });
     }
 
@@ -167,6 +186,10 @@ export async function getInventoryMovements() {
         referencia: v.Venta.numeroVenta,
         contraparte: v.Venta.Cliente.nombre,
         codigoBarras: v.CodigoBarrasItem?.codigoBarras ?? null,
+        usuario: nombres.get(v.Venta.usuarioRegistro) ?? null,
+        vence: v.StockVenta.Lote?.fechaVencimiento ? v.StockVenta.Lote.fechaVencimiento.toISOString() : null,
+        unidadNombre: v.StockVenta.UnidadMedida.nombre,
+        detalle: null,
       });
     }
 

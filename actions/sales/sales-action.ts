@@ -367,7 +367,7 @@ interface ProcessSaleRequest {
   total: number;
   montoRecibido: number;
   cambio: number;
-  metodoPago?: number; // 1 = efectivo, 2 = tarjeta, etc.
+  metodoPago?: number; // siempre 1 = efectivo (el sistema solo cobra en efectivo)
   detalles: DetalleVentaItem[];
   usuarioId: number;
 }

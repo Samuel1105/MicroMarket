@@ -14,6 +14,8 @@ export type LineaRecepcion = {
   unidad: string;
   /** Lo que se pidió, en la unidad de compra */
   cantidadPedida: number;
+  /** Unidades base que trae cada unidad de compra (una Caja de 6 = 6) */
+  factorBase: number;
   precioUnitario: number;
   numeroLote: string;
   fechaVencimiento: string | null; // YYYY-MM-DD
@@ -48,7 +50,7 @@ export async function getComprasPorRecibir(): Promise<{ success: boolean; data: 
             precioUnitario: true,
             Producto: { select: { nombre: true } },
             UnidadMedida: { select: { nombre: true, abreviatura: true } },
-            Lote: { select: { numeroLote: true, fechaVencimiento: true } },
+            Lote: { select: { numeroLote: true, fechaVencimiento: true, cantidadInicialUnidadesBase: true } },
           },
         },
       },
@@ -65,8 +67,9 @@ export async function getComprasPorRecibir(): Promise<{ success: boolean; data: 
         lineas: c.DetalleCompra.map((d) => ({
           detalleId: d.id,
           producto: d.Producto.nombre,
-          unidad: d.UnidadMedida.abreviatura || d.UnidadMedida.nombre,
+          unidad: d.UnidadMedida.nombre,
           cantidadPedida: num(d.cantidadComprada),
+          factorBase: num(d.cantidadComprada) > 0 && d.Lote[0] ? num(d.Lote[0].cantidadInicialUnidadesBase) / num(d.cantidadComprada) : 1,
           precioUnitario: num(d.precioUnitario),
           numeroLote: d.Lote[0]?.numeroLote ?? "",
           fechaVencimiento: d.Lote[0]?.fechaVencimiento?.toISOString().slice(0, 10) ?? null,

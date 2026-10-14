@@ -1,375 +1,435 @@
 "use client";
 
-import { Spinner } from "@heroui/react";
-import { Icon } from "@iconify/react";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 
-import { FinancialReportData, getFinancialReport } from "@/actions/reportes/reporte-financiero";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
-import BaseChart from "@/components/dashboard/BaseChart";
-import ChartCard from "@/components/reports/ChartCard";
-import { acumuladoOption, COLORS, hBarOption } from "@/components/reports/chart-options";
-import Insights, { Insight } from "@/components/reports/Insights";
-import Kpi from "@/components/reports/Kpi";
-import ReportHeader, { ReportRange } from "@/components/reports/ReportHeader";
-import SplitBar from "@/components/reports/SplitBar";
-import { formatRangoEs, getCurrentMonthRange } from "@/src/utils/report-dates";
+import { FilaCompra, getFinanzasDatos, getVentasDatos } from "@/actions/reportes/datos-reportes";
+import Avisos, { Aviso } from "@/components/reports/kit/Avisos";
+import ChartPanel from "@/components/reports/kit/ChartPanel";
+import FilterBar, { FilterDim, Filters } from "@/components/reports/kit/FilterBar";
+import KpiAnimado from "@/components/reports/kit/KpiAnimado";
+import PaginaReporte from "@/components/reports/kit/PaginaReporte";
+import TablaBuscable, { Columna } from "@/components/reports/kit/TablaBuscable";
+import { mapaColores } from "@/components/reports/kit/colores";
+import { crearCubos, diaDeSegundos, fechaEs } from "@/components/reports/kit/fechas";
+import { opcionBarrasH, opcionColumnas, opcionDona, tablaDeSeries } from "@/components/reports/kit/opciones";
+import { useReporte } from "@/components/reports/kit/useReporte";
+import { agrupar, expandir, filtrarVentas } from "@/components/reports/kit/ventas";
+import { ReportRange } from "@/components/reports/ReportHeader";
+import { getCurrentMonthRange } from "@/src/utils/report-dates";
 import { bs, num, pct, variacion } from "@/src/utils/report-format";
 
-function fechaEs(iso: string): string {
-  const [y, m, d] = iso.split("-");
-
-  return `${d}/${m}/${y}`;
-}
-
-function buildInsights(d: FinancialReportData): Insight[] {
-  const a = d.actual;
-  const items: Insight[] = [];
-
-  if (a.numeroVentas === 0) {
-    items.push({
-      tone: "warn",
-      text: `No hay ventas registradas entre ${formatRangoEs(d.rango.start, d.rango.end)}. Prueba con otro rango de fechas.`,
-    });
-
-    return items;
-  }
-
-  if (a.utilidad < 0) {
-    items.push({
-      tone: "warn",
-      text: `Perdiste dinero en este período: después de pagar la mercadería vendida y la que se venció, faltaron ${bs(Math.abs(a.utilidad))}. Revisa los precios en Rentabilidad.`,
-    });
-  } else if (a.margen < 15) {
-    items.push({
-      tone: "warn",
-      text: `Tu margen es de ${pct(a.margen)}, bajo: por cada Bs. 100 vendidos quedan Bs. ${a.margen.toFixed(0)} antes de los gastos del local. Mira qué productos dejan menos en Rentabilidad.`,
-    });
-  } else {
-    items.push({
-      tone: "good",
-      text: `Estás en ganancia: ${bs(a.utilidad)} de utilidad (margen ${pct(a.margen)}) sobre ${bs(a.ventas)} vendidos, antes de los gastos del local.`,
-    });
-  }
-
-  if (a.perdidaVencimiento > 0) {
-    const top = d.vencidos.slice(0, 3).map((v) => v.producto);
-    const unicos = Array.from(new Set(top)).join(", ");
-
-    items.push({
-      tone: "warn",
-      text: `Se venció mercadería por ${bs(a.perdidaVencimiento)} (${pct((a.perdidaVencimiento / a.ventas) * 100)} de lo vendido): ${unicos}. Compra menos de esos productos o ponlos en promoción antes de que venzan.`,
-    });
-  }
-
-  const dv = variacion(a.ventas, d.anterior.ventas);
-
-  if (dv !== null && dv <= -10) {
-    items.push({ tone: "warn", text: `Las ventas bajaron ${Math.abs(dv).toFixed(1)}% frente al período anterior.` });
-  } else if (dv !== null && dv >= 10) {
-    items.push({ tone: "good", text: `Las ventas subieron ${dv.toFixed(1)}% frente al período anterior.` });
-  }
-
-  if (a.compras > a.ventas * 1.2) {
-    items.push({
-      tone: "info",
-      text: `Compraste ${bs(a.compras)}, más de lo que vendiste (${bs(a.ventas)}). Es normal cuando repones stock: esa mercadería sigue en tu almacén y no es pérdida. Solo vigila que no se estanque ni se venza (reporte de Almacén).`,
-    });
-  }
-
-  const prov = d.comprasPorProveedor[0];
-
-  if (prov && d.comprasPorProveedor.length > 1 && prov.porcentaje >= 60) {
-    items.push({
-      tone: "info",
-      text: `El ${pct(prov.porcentaje, 0)} de tus compras es a ${prov.proveedor}. Depender de un solo proveedor te deja sin margen para negociar precios.`,
-    });
-  }
-
-  const cat = d.ventasPorCategoria[0];
-
-  if (cat && d.ventasPorCategoria.length > 1 && cat.total / a.ventas >= 0.5) {
-    items.push({
-      tone: "info",
-      text: `${cat.categoria} concentra el ${pct((cat.total / a.ventas) * 100, 0)} de tus ventas.`,
-    });
-  }
-
-  if (d.productosSinCosto.length > 0) {
-    const nombres = d.productosSinCosto.slice(0, 3).join(", ");
-    const resto = d.productosSinCosto.length > 3 ? ` y ${d.productosSinCosto.length - 3} más` : "";
-
-    items.push({
-      tone: "warn",
-      text: `Vendiste productos sin ninguna compra registrada (${nombres}${resto}). Su costo cuenta como 0, así que la utilidad puede verse mayor de lo real.`,
-    });
-  }
-
-  if (d.productosVendidosDeMas.length > 0) {
-    const nombres = d.productosVendidosDeMas.slice(0, 3).join(", ");
-    const resto = d.productosVendidosDeMas.length > 3 ? ` y ${d.productosVendidosDeMas.length - 3} más` : "";
-
-    items.push({
-      tone: "warn",
-      text: `Registraste más ventas de las unidades que compraste (${nombres}${resto}). Los registros de compras o de unidades no cuadran, y por eso el costo de lo vendido puede estar distorsionado. Revísalo en el historial de compras.`,
-    });
-  }
-
-  return items;
-}
+type Cat = { categoria: string; vendido: number; costo: number; ganancia: number; margen: number; compras: number; perdida: number; utilidad: number };
 
 export default function FinancialReport() {
   const [range, setRange] = useState<ReportRange>(getCurrentMonthRange());
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<FinancialReportData | null>(null);
+  const ventasQ = useReporte(getVentasDatos, range);
+  const finQ = useReporte(getFinanzasDatos, range);
+  const data = ventasQ.data;
+  const fin = finQ.data;
+  const loading = ventasQ.loading || finQ.loading;
+  const [filtros, setFiltros] = useState<Filters>({});
 
-  useEffect(() => {
-    let cancelado = false;
+  const { filas, previas } = useMemo(() => (data ? expandir(data) : { filas: [], previas: [] }), [data]);
+  const fil = useMemo(() => filtrarVentas(filas, filtros), [filas, filtros]);
+  const filPrev = useMemo(() => filtrarVentas(previas, filtros), [previas, filtros]);
+  const cubos = useMemo(() => (data ? crearCubos(data.rango.start, data.rango.end) : null), [data]);
+  const colorCat = useMemo(() => mapaColores((data?.productos ?? []).map((p) => p.categoria)), [data]);
 
-    setLoading(true);
-    setError(null);
-    getFinancialReport({ startDate: range.start, endDate: range.end })
-      .then((res) => {
-        if (cancelado) return;
-        if (res.success && res.data) setData(res.data);
-        else setError(res.error || "No se pudo cargar el reporte");
-      })
-      .catch(() => !cancelado && setError("No se pudo conectar con el servidor"))
-      .finally(() => !cancelado && setLoading(false));
+  const pasa = (producto: string, categoria: string) =>
+    (!filtros.producto?.length || filtros.producto.includes(producto)) && (!filtros.categoria?.length || filtros.categoria.includes(categoria));
+  const compras = useMemo(() => (fin?.compras ?? []).filter((c) => pasa(c.producto, c.categoria)), [fin, filtros]); // eslint-disable-line react-hooks/exhaustive-deps
+  const comprasPrev = useMemo(() => (fin?.comprasPrev ?? []).filter((c) => pasa(c.producto, c.categoria)), [fin, filtros]); // eslint-disable-line react-hooks/exhaustive-deps
+  const vencidos = useMemo(() => (fin?.vencidos ?? []).filter((v) => pasa(v.producto, v.categoria)), [fin, filtros]); // eslint-disable-line react-hooks/exhaustive-deps
+  const vencidosPrev = useMemo(() => (fin?.vencidosPrev ?? []).filter((v) => pasa(v.producto, v.categoria)), [fin, filtros]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    return () => {
-      cancelado = true;
-    };
-  }, [range.start, range.end]);
-
-  const insights = useMemo(() => (data ? buildInsights(data) : []), [data]);
-
-  const acumulado = useMemo(
-    () =>
-      data
-        ? acumuladoOption(
-            data.ventasPorDia.map((d) => d.fecha),
-            data.ventasPorDia.map((d) => d.monto),
-            data.comprasPorDia.map((d) => d.monto),
-          )
-        : null,
+  const dims = useMemo<FilterDim[]>(
+    () => [
+      { key: "categoria", label: "Categoría", icon: "heroicons:tag", options: Array.from(new Set((data?.productos ?? []).map((p) => p.categoria))).sort((a, b) => a.localeCompare(b)) },
+      { key: "producto", label: "Producto", icon: "heroicons:cube", options: Array.from(new Set((data?.productos ?? []).map((p) => p.nombre))).sort((a, b) => a.localeCompare(b)) },
+    ],
     [data],
   );
 
-  const sinVentas = data ? data.actual.numeroVentas === 0 : false;
-  const sinMovimiento = data ? data.actual.numeroVentas === 0 && data.actual.compras === 0 : false;
+  const alternar = (clave: string, valor: string) =>
+    setFiltros((f) => {
+      const actual = f[clave] ?? [];
+      const n = { ...f };
+      const lista = actual.includes(valor) ? actual.filter((x) => x !== valor) : [...actual, valor];
+
+      if (lista.length) n[clave] = lista;
+      else delete n[clave];
+
+      return n;
+    });
+
+  // ── Totales ──
+  const suma = (rows: { importe: number }[]) => rows.reduce((s, x) => s + x.importe, 0);
+  const vendido = suma(fil);
+  const costo = fil.reduce((s, x) => s + x.costo, 0);
+  // FÓRMULAS (solo para el autor, no se muestran en pantalla):
+  //   vendido  = suma de las ventas vigentes (las anuladas no cuentan)
+  //   costo    = unidades vendidas × costo promedio ponderado de compra (por unidad base)
+  //   ganancia = vendido − costo                       (ganancia bruta)
+  //   perdida  = costo de los lotes que vencieron con unidades sin vender dentro del período
+  //   utilidad = ganancia − perdida                    · margen = utilidad ÷ vendido × 100
+  //   compraste = suma de las compras recibidas        · caja neta = vendido − compraste (no es utilidad)
+  //   Cuadre: compraste = costo de lo vendido + lo que queda en el almacén (al costo) + mermas y vencidos dados de baja
+  const ganancia = vendido - costo;
+  const perdida = vencidos.reduce((s, v) => s + v.costo, 0);
+  const utilidad = ganancia - perdida;
+  const totalCompras = compras.reduce((s, c) => s + c.total, 0);
+  const vendidoPrev = suma(filPrev);
+  const costoPrev = filPrev.reduce((s, x) => s + x.costo, 0);
+  const perdidaPrev = vencidosPrev.reduce((s, v) => s + v.costo, 0);
+  const utilidadPrev = vendidoPrev - costoPrev - perdidaPrev;
+  const totalComprasPrev = comprasPrev.reduce((s, c) => s + c.total, 0);
+
+  // ── Por día / semana ──
+  const series = useMemo(() => {
+    if (!cubos) return null;
+    const v = cubos.claves.map(() => 0);
+    const c = cubos.claves.map(() => 0);
+    const g = cubos.claves.map(() => 0);
+
+    for (const x of fil) {
+      const i = cubos.indice(x.dia);
+
+      v[i] += x.importe;
+      g[i] += x.importe - x.costo;
+    }
+    for (const x of compras) c[cubos.indice(diaDeSegundos(x.f))] += x.total;
+
+    return { v, c, g };
+  }, [cubos, fil, compras]);
+
+  const opcionTiempo = useMemo(
+    () =>
+      cubos && series
+        ? opcionColumnas({
+            etiquetas: cubos.etiquetas,
+            series: [
+              { name: "Vendido", color: "#2a78d6", data: series.v },
+              { name: "Compras", color: "#eb6834", data: series.c },
+            ],
+            superpuesta: { name: "Ganancia bruta", color: "#1baf7a", data: series.g },
+            fmt: (n) => bs(n, 0),
+          })
+        : {},
+    [cubos, series],
+  );
+
+  // ── De cada 100 Bs ──
+  const opcion100 = useMemo(
+    () =>
+      vendido > 0
+        ? opcionBarrasH({
+            nombres: ["De cada Bs 100 que vendes"],
+            series: [
+              { name: "Costó la mercadería", color: "#eb6834", valores: [(costo / vendido) * 100] },
+              { name: "Se perdió por vencimiento", color: "#6250d6", valores: [Math.max((perdida / vendido) * 100, 0)] },
+              { name: "Te queda de utilidad", color: "#1baf7a", valores: [Math.max((utilidad / vendido) * 100, 0)] },
+            ],
+            fmt: (n) => bs(n, 1),
+            etiqueta: () => "Bs 100",
+            maximo: 100,
+          })
+        : {},
+    [vendido, costo, perdida, utilidad],
+  );
+
+  // ── Por categoría ──
+  const categorias = useMemo<Cat[]>(() => {
+    const v = agrupar(fil, (x) => x.producto.categoria);
+    const nombres = new Set<string>([...v.keys(), ...compras.map((c) => c.categoria), ...vencidos.map((x) => x.categoria)]);
+
+    return Array.from(nombres)
+      .map((categoria) => {
+        const a = v.get(categoria);
+        const vendidoC = a?.importe ?? 0;
+        const costoC = a?.costo ?? 0;
+        const comprasC = compras.filter((c) => c.categoria === categoria).reduce((s, c) => s + c.total, 0);
+        const perdidaC = vencidos.filter((x) => x.categoria === categoria).reduce((s, x) => s + x.costo, 0);
+
+        return {
+          categoria,
+          vendido: vendidoC,
+          costo: costoC,
+          ganancia: vendidoC - costoC,
+          margen: vendidoC > 0 ? ((vendidoC - costoC - perdidaC) / vendidoC) * 100 : 0,
+          compras: comprasC,
+          perdida: perdidaC,
+          utilidad: vendidoC - costoC - perdidaC,
+        };
+      })
+      .sort((a, b) => b.vendido - a.vendido);
+  }, [fil, compras, vencidos]);
+
+  const opcionVentasCat = useMemo(
+    () =>
+      opcionDona({
+        datos: categorias.map((c) => ({ name: c.categoria, value: c.vendido, color: colorCat(c.categoria) })),
+        centro: { texto: bs(vendido, 0), sub: "vendido" },
+        fmt: (n) => bs(n, 0),
+        seleccion: filtros.categoria ?? [],
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [categorias, filtros.categoria],
+  );
+
+  const porUtilidad = useMemo(() => [...categorias].sort((a, b) => b.utilidad - a.utilidad), [categorias]);
+  const opcionUtilidadCat = useMemo(
+    () =>
+      opcionBarrasH({
+        nombres: porUtilidad.map((c) => c.categoria),
+        series: [{ name: "Utilidad", color: "#1baf7a", valores: porUtilidad.map((c) => c.utilidad) }],
+        colorPorBarra: porUtilidad.map((c) => colorCat(c.categoria)),
+        negativoRojo: true,
+        fmt: (n) => bs(n, 0),
+        seleccion: filtros.categoria ?? [],
+        pie: (nombre) => {
+          const c = porUtilidad.find((x) => x.categoria === nombre);
+
+          return c ? `Vendido ${bs(c.vendido, 0)} · margen ${pct(c.margen, 1)}` : undefined;
+        },
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [porUtilidad, filtros.categoria],
+  );
+
+  // ── Compras por proveedor ──
+  const porProveedor = useMemo(() => {
+    const m = new Map<string, number>();
+
+    compras.forEach((c: FilaCompra) => m.set(c.proveedor, (m.get(c.proveedor) ?? 0) + c.total));
+
+    return Array.from(m.entries())
+      .map(([nombre, total]) => ({ nombre, total }))
+      .sort((a, b) => b.total - a.total);
+  }, [compras]);
+  const colorProv = useMemo(() => mapaColores(porProveedor.map((p) => p.nombre)), [porProveedor]);
+  const opcionProv = useMemo(
+    () =>
+      opcionBarrasH({
+        nombres: porProveedor.map((p) => p.nombre),
+        series: [{ name: "Compras", color: "#eb6834", valores: porProveedor.map((p) => p.total) }],
+        colorPorBarra: porProveedor.map((p) => colorProv(p.nombre)),
+        fmt: (n) => bs(n, 0),
+        pie: (nombre) => {
+          const p = porProveedor.find((x) => x.nombre === nombre);
+
+          return p && totalCompras ? `${pct((p.total / totalCompras) * 100, 0)} de tus compras` : undefined;
+        },
+      }),
+    [porProveedor, colorProv, totalCompras],
+  );
+
+  const avisos: Aviso[] = [];
+
+  if (data?.avisos.sinCosto.length)
+    avisos.push({ tono: "alerta", texto: `Sin compras registradas (costo 0): ${data.avisos.sinCosto.join(", ")}. Su ganancia sale inflada.` });
+  if (data?.avisos.vendidosDeMas.length)
+    avisos.push({ tono: "alerta", texto: `Se vendió más de lo que se compró: ${data.avisos.vendidosDeMas.join(", ")}. Revisa que las compras estén completas.` });
+
+  const columnas: Columna<Cat>[] = [
+    {
+      clave: "categoria",
+      titulo: "Categoría",
+      valor: (c) => c.categoria,
+      celda: (c) => (
+        <span className="inline-flex items-center gap-1.5 font-semibold">
+          <i className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: colorCat(c.categoria) }} />
+          {c.categoria}
+        </span>
+      ),
+    },
+    { clave: "vendido", titulo: "Vendido", alinear: "der", valor: (c) => c.vendido, celda: (c) => bs(c.vendido, 0) },
+    { clave: "costo", titulo: "Costó", alinear: "der", valor: (c) => c.costo, celda: (c) => bs(c.costo, 0) },
+    { clave: "ganancia", titulo: "Ganancia bruta", alinear: "der", valor: (c) => c.ganancia, celda: (c) => bs(c.ganancia, 0) },
+    { clave: "perdida", titulo: "Vencido", alinear: "der", valor: (c) => c.perdida, celda: (c) => (c.perdida ? <span className="text-red-600">{bs(c.perdida, 0)}</span> : "—") },
+    { clave: "utilidad", titulo: "Utilidad", alinear: "der", valor: (c) => c.utilidad, celda: (c) => <b className={c.utilidad < 0 ? "text-red-600" : ""}>{bs(c.utilidad, 0)}</b> },
+    { clave: "margen", titulo: "Margen", alinear: "der", valor: (c) => c.margen, celda: (c) => (c.vendido ? pct(c.margen, 1) : "—") },
+    { clave: "compras", titulo: "Compraste", alinear: "der", valor: (c) => c.compras, celda: (c) => bs(c.compras, 0) },
+  ];
+
+  const sinVentas = vendido === 0 && totalCompras === 0;
 
   return (
-    <ProtectedRoute allowedRoles={[1, 4]}>
-      <div className="p-4 md:p-8 space-y-5">
-        <ReportHeader
-          crumb="Estado financiero"
-          question="¿Estamos en ganancia en este período? ¿En qué se está yendo más dinero?"
-          range={range}
-          title="Estado financiero"
-          onRangeChange={setRange}
-        />
+    <PaginaReporte
+      cargando={loading}
+      crumb="Estado financiero"
+      error={ventasQ.error ?? finQ.error}
+      listo={!!data && !!fin && !!cubos}
+      onRango={setRange}
+      pregunta="¿Ganamos o perdemos? ¿Cuánto entra, cuánto sale y cuánto queda?"
+      rango={range}
+      roles={[1, 4]}
+      titulo="Estado financiero"
+    >
+      {data && fin && cubos && (
+        <>
+          <FilterBar dims={dims} value={filtros} onChange={setFiltros} />
 
-        {error && (
-          <div className="rounded-2xl border border-red-200 bg-red-50 text-red-700 text-sm p-4">{error}</div>
-        )}
-
-        {loading && !data ? (
-          <div className="flex justify-center py-24">
-            <Spinner label="Calculando..." size="lg" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            <KpiAnimado
+              definition="Total vendido (sin ventas anuladas)."
+              delta={variacion(vendido, vendidoPrev)}
+              formato={(n) => bs(n, 0)}
+              hint={`${num(new Set(fil.map((x) => x.venta)).size)} ventas`}
+              icon="heroicons:banknotes"
+              label="Vendiste"
+              valor={vendido}
+            />
+            <KpiAnimado
+              definition="Lo que costó (a precio de compra) la mercadería que vendiste."
+              formato={(n) => bs(n, 0)}
+              hint="costo de lo vendido"
+              icon="heroicons:receipt-percent"
+              label="Costó lo que vendiste"
+              tone="secondary"
+              valor={costo}
+            />
+            <KpiAnimado
+              definition="Vendido menos lo que costó la mercadería, antes de contar lo que se venció y los gastos del local."
+              formato={(n) => bs(n, 0)}
+              hint={`margen bruto ${vendido ? pct((ganancia / vendido) * 100, 1) : "0%"}`}
+              icon="heroicons:arrow-trending-up"
+              label="Ganancia bruta"
+              tone="success"
+              valor={ganancia}
+            />
+            <KpiAnimado
+              definition="Costo de la mercadería que venció sin venderse dentro del período."
+              formato={(n) => bs(n, 0)}
+              hint={vencidos.length ? `${vencidos.length} ${vencidos.length === 1 ? "lote vencido" : "lotes vencidos"}` : "nada se venció"}
+              icon="heroicons:clock"
+              label="Perdido por vencimiento"
+              tone={perdida > 0 ? "danger" : "success"}
+              valor={perdida}
+            />
+            <KpiAnimado
+              definition="Ganancia bruta menos lo perdido por vencimiento. Es antes de alquiler, sueldos y otros gastos del local."
+              delta={variacion(utilidad, utilidadPrev)}
+              formato={(n) => bs(n, 0)}
+              hint={`margen ${vendido ? pct((utilidad / vendido) * 100, 1) : "0%"}`}
+              icon="heroicons:chart-bar"
+              label="Utilidad"
+              tone={utilidad < 0 ? "danger" : "primary"}
+              valor={utilidad}
+            />
+            <KpiAnimado
+              definition="Lo que compraste a tus proveedores en el período. Parte de eso sigue guardado en el almacén, por eso no es una pérdida."
+              delta={variacion(totalCompras, totalComprasPrev)}
+              formato={(n) => bs(n, 0)}
+              hint={`caja neta ${bs(vendido - totalCompras, 0)}`}
+              icon="heroicons:truck"
+              label="Compraste"
+              tone="neutral"
+              valor={totalCompras}
+            />
           </div>
-        ) : (
-          data && (
-            <div className={`space-y-5 transition-opacity ${loading ? "opacity-50" : ""}`}>
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                <Kpi
-                  definition="Total cobrado por las ventas del período, después de descuentos."
-                  delta={variacion(data.actual.ventas, data.anterior.ventas)}
-                  hint={`${data.actual.numeroVentas} ${data.actual.numeroVentas === 1 ? "venta" : "ventas"}`}
-                  icon="heroicons:banknotes"
-                  label="Ventas"
-                  tone="primary"
-                  value={bs(data.actual.ventas)}
-                />
-                <Kpi
-                  definition="Lo que costó la mercadería que vendiste, con el costo promedio de tus compras. No es lo que compraste en el período, sino lo que salió vendido."
-                  delta={variacion(data.actual.costoVentas, data.anterior.costoVentas)}
-                  hint="Lo que costó lo que vendiste"
-                  icon="heroicons:archive-box"
-                  label="Costo de lo vendido"
-                  neutralDelta
-                  tone="neutral"
-                  value={bs(data.actual.costoVentas)}
-                />
-                <Kpi
-                  definition="Costo de la mercadería que llegó a su fecha de vencimiento sin venderse durante el período. Es plata que ya gastaste y no vas a recuperar."
-                  delta={variacion(data.actual.perdidaVencimiento, data.anterior.perdidaVencimiento)}
-                  hint={
-                    data.vencidos.length > 0
-                      ? `${data.vencidos.length} ${data.vencidos.length === 1 ? "lote vencido" : "lotes vencidos"}`
-                      : "Nada se venció"
-                  }
-                  icon="heroicons:no-symbol"
-                  label="Pérdida por vencimiento"
-                  tone={data.actual.perdidaVencimiento > 0 ? "danger" : "neutral"}
-                  upIsGood={false}
-                  value={bs(data.actual.perdidaVencimiento)}
-                />
-                <Kpi
-                  definition="Ventas − costo de lo vendido − mercadería vencida. Todavía no descuenta los gastos del local (luz, alquiler, sueldos), que no se registran en el sistema."
-                  delta={variacion(data.actual.utilidad, data.anterior.utilidad)}
-                  hint={`Margen ${pct(data.actual.margen)} sobre lo vendido`}
-                  icon="heroicons:chart-bar"
-                  label="Utilidad"
-                  tone={data.actual.utilidad >= 0 ? "success" : "danger"}
-                  value={bs(data.actual.utilidad)}
-                />
-                <Kpi
-                  definition="Mercadería que compraste en el período. No es una pérdida: queda en tu almacén o estante hasta que se venda."
-                  delta={variacion(data.actual.compras, data.anterior.compras)}
-                  hint="Inversión en inventario"
-                  icon="heroicons:shopping-cart"
-                  label="Compras del período"
-                  neutralDelta
-                  tone="secondary"
-                  value={bs(data.actual.compras)}
-                />
-                <Kpi
-                  definition="Ventas menos compras. Es un dato de caja: te dice si el efectivo alcanzó, no si ganaste."
-                  delta={variacion(data.actual.efectivoNeto, data.anterior.efectivoNeto)}
-                  hint="Ventas − compras (solo caja)"
-                  icon="heroicons:wallet"
-                  label="Efectivo neto"
-                  neutralDelta
-                  tone="neutral"
-                  value={bs(data.actual.efectivoNeto)}
-                />
-              </div>
 
-              <Insights items={insights} />
+          <Avisos items={avisos} />
 
-              <ChartCard
-                empty={sinVentas}
-                subtitle="Cómo se reparte lo que vendiste"
-                title="¿A dónde fue lo que vendiste?"
-              >
-                <SplitBar
-                  remainder={{
-                    label: data.actual.utilidad >= 0 ? "Te quedó (utilidad)" : "Te faltó",
-                    value: data.actual.utilidad,
-                    color: data.actual.utilidad >= 0 ? COLORS.ventas : COLORS.negativo,
-                  }}
-                  segments={[
-                    {
-                      label: "Costo de lo vendido",
-                      value: data.actual.costoVentas,
-                      color: COLORS.compras,
-                      note: "pagaron la mercadería que vendiste",
-                    },
-                    ...(data.actual.perdidaVencimiento > 0
-                      ? [
-                          {
-                            label: "Se venció",
-                            value: data.actual.perdidaVencimiento,
-                            color: COLORS.negativo,
-                            note: "se perdieron por mercadería vencida",
-                          },
-                        ]
-                      : []),
-                  ]}
-                  total={data.actual.ventas}
-                  totalLabel="Vendiste"
-                />
-              </ChartCard>
+          <ChartPanel
+            empty={vendido <= 0}
+            height={150}
+            option={opcion100}
+            question="De cada 100 bolivianos que vendes: cuánto es costo, cuánto se perdió por vencimiento y cuánto te queda."
+            stale={loading}
+            title="¿A dónde va tu plata?"
+          />
 
-              <ChartCard
-                empty={sinMovimiento}
-                legend={[
-                  { label: "Ventas acumuladas", color: COLORS.ventas },
-                  { label: "Compras acumuladas", color: COLORS.compras },
-                ]}
-                subtitle="Suma día a día. Si la línea naranja sube más rápido que la azul, estás invirtiendo en mercadería más rápido de lo que la vendes"
-                title="Lo que entró y lo que salió, acumulado"
-              >
-                {acumulado && <BaseChart height="300px" option={acumulado} />}
-              </ChartCard>
+          <ChartPanel
+            empty={sinVentas}
+            height={340}
+            option={opcionTiempo}
+            question={`¿Cuánto entra y cuánto sale ${cubos.porSemana ? "cada semana" : "cada día"}? La línea es la ganancia bruta.`}
+            stale={loading}
+            table={
+              series
+                ? tablaDeSeries(
+                    cubos.porSemana ? "Semana" : "Día",
+                    cubos.etiquetas,
+                    [
+                      { name: "Vendido", color: "", data: series.v },
+                      { name: "Compras", color: "", data: series.c },
+                      { name: "Ganancia bruta", color: "", data: series.g },
+                    ],
+                    (n) => bs(n, 0),
+                    false,
+                  )
+                : undefined
+            }
+            title={cubos.porSemana ? "Ventas y compras por semana" : "Ventas y compras por día"}
+          />
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                <ChartCard
-                  empty={data.ventasPorCategoria.length === 0}
-                  subtitle="Qué categorías generan tus ingresos"
-                  title="Ventas por categoría"
-                >
-                  <BaseChart
-                    height={`${Math.max(180, data.ventasPorCategoria.length * 42 + 20)}px`}
-                    option={hBarOption(
-                      data.ventasPorCategoria.map((c) => ({ name: c.categoria, value: c.total })),
-                      { color: COLORS.ventas },
-                    )}
-                  />
-                </ChartCard>
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+            <ChartPanel
+              empty={categorias.length === 0}
+              height={320}
+              option={opcionVentasCat}
+              question="¿Qué categoría vende más? Clic en un color para filtrar."
+              stale={loading}
+              table={{ head: ["Categoría", "Vendido"], rows: categorias.map((c) => [c.categoria, bs(c.vendido, 0)]) }}
+              title="Ventas por categoría"
+              onClick={(p) => alternar("categoria", String(p.name))}
+            />
+            <ChartPanel
+              empty={porUtilidad.length === 0}
+              height={320}
+              option={opcionUtilidadCat}
+              question="¿Qué categoría deja más utilidad? Clic en una barra para filtrar."
+              stale={loading}
+              table={{ head: ["Categoría", "Utilidad", "Margen"], rows: porUtilidad.map((c) => [c.categoria, bs(c.utilidad, 0), c.vendido ? pct(c.margen, 1) : "—"]) }}
+              title="Utilidad por categoría"
+              onClick={(p) => alternar("categoria", String(p.name))}
+            />
+            <ChartPanel
+              empty={porProveedor.length === 0}
+              emptyText="No hubo compras en este período."
+              height={320}
+              option={opcionProv}
+              question="¿A quién le compras más?"
+              stale={loading}
+              table={{ head: ["Proveedor", "Compras", "Parte"], rows: porProveedor.map((p) => [p.nombre, bs(p.total, 0), totalCompras ? pct((p.total / totalCompras) * 100, 0) : "0%"]) }}
+              title="Compras por proveedor"
+            />
+          </div>
 
-                <ChartCard
-                  empty={data.comprasPorProveedor.length === 0}
-                  emptyText="No hay compras en este rango de fechas."
-                  subtitle="A quién le estás comprando más"
-                  title="Compras por proveedor"
-                >
-                  <BaseChart
-                    height={`${Math.max(180, data.comprasPorProveedor.length * 42 + 20)}px`}
-                    option={hBarOption(
-                      data.comprasPorProveedor.map((p) => ({ name: p.proveedor, value: p.total })),
-                      { color: COLORS.compras },
-                    )}
-                  />
-                </ChartCard>
-              </div>
+          <TablaBuscable
+            clave={(c) => c.categoria}
+            columnas={columnas}
+            filas={categorias}
+            orden={{ clave: "vendido", desc: true }}
+            porPagina={10}
+            subtitulo="Resumen por categoría: cuánto vendiste, cuánto costó, lo que se venció y lo que te quedó."
+            titulo="Cuentas por categoría"
+            buscar={(c) => c.categoria}
+          />
 
-              {data.vencidos.length > 0 && (
-                <div className="rounded-2xl bg-white border border-default-200 shadow-sm p-5">
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div>
-                      <h3 className="font-bold text-base leading-tight">Mercadería que se venció</h3>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        Lotes que llegaron a su fecha de vencimiento con unidades sin vender. Se valoran a lo que te costaron.
-                      </p>
-                    </div>
-                    <p className="text-lg font-bold text-red-600 tabular-nums shrink-0">
-                      {bs(data.actual.perdidaVencimiento)}
-                    </p>
-                  </div>
-                  <div className="divide-y divide-default-100">
-                    {data.vencidos.map((v) => (
-                      <div key={`${v.producto}-${v.lote}`} className="py-2.5 flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-lg bg-red-50 text-red-600 flex items-center justify-center shrink-0">
-                          <Icon height="18" icon="heroicons:no-symbol" width="18" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-sm truncate">{v.producto}</p>
-                          <p className="text-xs text-gray-500">
-                            Lote {v.lote} · venció el {fechaEs(v.venciO)}
-                          </p>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <p className="text-sm font-bold text-red-600 tabular-nums">{bs(v.costo)}</p>
-                          <p className="text-xs text-gray-500">{num(v.unidades, v.unidades % 1 ? 1 : 0)} unid. sin vender</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <p className="text-xs text-gray-500 px-1">
-                Utilidad = ventas − costo de lo vendido − mercadería vencida. No incluye gastos del local (luz, alquiler,
-                sueldos): esos no se registran en el sistema. Las variaciones comparan con los {data.rango.dias} días
-                anteriores.
-              </p>
-            </div>
-          )
-        )}
-      </div>
-    </ProtectedRoute>
+          {vencidos.length > 0 && (
+            <TablaBuscable
+              clave={(v) => `${v.producto}-${v.lote}`}
+              columnas={[
+                { clave: "producto", titulo: "Producto", valor: (v) => v.producto, celda: (v) => <span className="font-semibold">{v.producto}</span> },
+                { clave: "lote", titulo: "Lote", valor: (v) => v.lote },
+                { clave: "vencio", titulo: "Venció el", alinear: "der", valor: (v) => v.venciO, celda: (v) => fechaEs(v.venciO) },
+                { clave: "unidades", titulo: "Sin vender", alinear: "der", valor: (v) => v.unidades, celda: (v) => num(v.unidades, v.unidades % 1 ? 1 : 0) },
+                { clave: "costo", titulo: "Costo perdido", alinear: "der", valor: (v) => v.costo, celda: (v) => <b className="text-red-600">{bs(v.costo, 0)}</b> },
+              ]}
+              filas={vencidos}
+              orden={{ clave: "costo", desc: true }}
+              porPagina={6}
+              subtitulo="Lotes que vencieron en el período con unidades sin vender. Para evitarlo: compra menos cantidad o rota primero lo que vence antes."
+              titulo="Mercadería que se venció"
+              buscar={(v) => `${v.producto} ${v.lote}`}
+            />
+          )}
+          <p className="text-xs text-gray-500 px-1">
+            La utilidad es antes de gastos del local (alquiler, sueldos, servicios).
+          </p>
+        </>
+      )}
+    </PaginaReporte>
   );
 }

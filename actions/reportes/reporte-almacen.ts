@@ -64,6 +64,17 @@ export type AlmacenData = {
   vencidos: Array<{ producto: string; lote: string; vencio: string; unidades: number; valor: number; unidadBase: string }>;
 };
 
+/*
+ * FÓRMULAS (solo para el autor, no se muestran en pantalla):
+ *   almacén (por lote) = cantidad inicial − salidas al estante + ajustes del almacén
+ *   estante (por lote) = salidas al estante − vendido + ajustes del estante
+ *   total   = almacén + estante                       · valor = total × costo promedio ponderado por unidad base
+ *   ventaDiaria = unidades vendidas en los últimos DIAS_RITMO (30) días ÷ 30      · cobertura (alcanza) = total ÷ ventaDiaria
+ *   estado: total = 0 → "sin" · total < stockMínimo → "bajo" · si no → "ok"
+ *   reponer (conviene comprar) = máx(stockMínimo, ventaDiaria × DIAS_OBJETIVO (15)) − total      (no sale del documento: el 15 es propio)
+ *   parado = tiene stock y no vendió nada en 30 días
+ *   días para vencer = fecha de vencimiento del lote − hoy (negativo = ya venció)
+ */
 export async function getWarehouseInventory(): Promise<{ success: boolean; data?: AlmacenData; error?: string }> {
   try {
     const hoy = getBoliviaTime().toISOString().slice(0, 10);

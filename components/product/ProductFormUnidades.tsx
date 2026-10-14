@@ -1,11 +1,10 @@
 "use client";
+import { Icon } from "@iconify/react";
 import {
   Button,
   Input,
   Select,
   SelectItem,
-  Card,
-  CardBody,
   Chip,
 } from "@heroui/react";
 import React, { useCallback, useEffect, useState } from "react";
@@ -131,323 +130,181 @@ export default function ProductFormUnidades({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Información de edición */}
-      {isEditMode && (
-        <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
-          <div className="flex items-center gap-2">
-            <svg
-              className="w-4 h-4 text-amber-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-              />
-            </svg>
-            <div>
-              <span className="text-sm font-medium text-amber-800">
-                Editando unidades existentes
-              </span>
-              <p className="text-xs text-amber-600 mt-1">
-                Puedes modificar precios, agregar nuevas unidades o eliminar
-                existentes.
-              </p>
+    <div className="space-y-4">
+      {fields.map((field, index) => {
+        const isExistingConversion =
+          isEditMode && watchedConversiones[index]?.id;
+        const esBase = index === 0;
+        const factor = Number(watchedConversiones?.[index]?.factorConversion) || 1;
+        const precio = Number(watchedConversiones?.[index]?.precioVentaUnitario) || 0;
+        const equivalencia = calcularEquivalencia(index);
+
+        return (
+          <div
+            key={field.id}
+            className={`rounded-xl border p-4 ${
+              esBase ? "border-green-300 bg-green-50/40" : "border-gray-200 bg-gray-50/50"
+            }`}
+          >
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Chip color={esBase ? "success" : "primary"} size="sm" variant="flat">
+                  {esBase ? "Unidad base" : `Unidad de venta ${index + 1}`}
+                </Chip>
+                {isExistingConversion ? (
+                  <Chip size="sm" variant="light">
+                    Ya existe
+                  </Chip>
+                ) : (
+                  !esBase && (
+                    <Chip color="success" size="sm" variant="light">
+                      Nueva
+                    </Chip>
+                  )
+                )}
+                {esBase && (
+                  <span className="text-xs text-gray-500">
+                    La más pequeña: en ella se cuenta el stock.
+                  </span>
+                )}
+              </div>
+
+              {!esBase && (
+                <Button
+                  isIconOnly
+                  aria-label="Quitar esta unidad"
+                  color="danger"
+                  size="sm"
+                  variant="light"
+                  onPress={() => eliminarConversion(index)}
+                >
+                  <Icon height="18" icon="heroicons:trash" width="18" />
+                </Button>
+              )}
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* Lista de conversiones */}
-      <div className="space-y-4">
-        {fields.map((field, index) => {
-          const isExistingConversion =
-            isEditMode && watchedConversiones[index]?.id;
+            {isExistingConversion && (
+              <Controller
+                control={control}
+                name={`conversiones.${index}.id`}
+                render={({ field }) => <input type="hidden" {...field} />}
+              />
+            )}
 
-          return (
-            <Card
-              key={field.id}
-              className={`${index === 0 ? "ring-2 ring-green-200" : ""}`}
-            >
-              <CardBody className="p-6">
-                {/* Header de la conversión */}
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`p-2 rounded-lg ${
-                        index === 0
-                          ? "bg-green-100 text-green-600"
-                          : "bg-primary-100 text-primary-600"
-                      }`}
+            <div className={`grid grid-cols-1 items-start gap-x-3 gap-y-8 pt-3 ${esBase ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
+              <Controller
+                control={control}
+                name={`conversiones.${index}.unidadOrigenID`}
+                render={({ field }) => (
+                  <div className="flex items-start gap-2">
+                    <Select
+                      {...field}
+                      isRequired
+                      className="flex-1"
+                      isLoading={loading}
+                      label="Unidad de Medida"
+                      labelPlacement="outside"
+                      placeholder="Seleccionar"
+                      // Un arreglo con el id como texto: pasar el texto suelto lo "parte" en letras y los ids de 2 cifras (10, 12…) no se seleccionaban
+                      selectedKeys={field.value ? [String(field.value)] : []}
+                      variant="bordered"
                     >
-                      {index === 0 ? (
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                          />
-                        </svg>
-                      ) : (
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                          />
-                        </svg>
-                      )}
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-800 flex items-center gap-2">
-                        {index === 0
-                          ? "Unidad Base"
-                          : `Unidad de Venta ${index + 1}`}
-                        {isExistingConversion && (
-                          <Chip color="primary" size="sm" variant="flat">
-                            Existente
-                          </Chip>
-                        )}
-                        {!isExistingConversion && index > 0 && (
-                          <Chip color="success" size="sm" variant="flat">
-                            Nueva
-                          </Chip>
-                        )}
-                      </h4>
-                      {index === 0 && (
-                        <p className="text-xs text-green-600">
-                          Esta será tu unidad de medida principal
-                        </p>
-                      )}
-                    </div>
-                  </div>
+                      {unidades.map((unidad) => (
+                        <SelectItem key={unidad.id}>
+                          {`${unidad.nombre} (${unidad.abreviatura})`}
+                        </SelectItem>
+                      ))}
+                    </Select>
 
-                  {index > 0 && (
                     <Button
                       isIconOnly
-                      color="danger"
-                      size="sm"
-                      variant="light"
-                      onPress={() => eliminarConversion(index)}
+                      aria-label="Crear nueva unidad"
+                      className="mt-[26px]"
+                      title="Crear nueva unidad"
+                      variant="bordered"
+                      onPress={() => setMostrarModal(true)}
                     >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          d="M6 18L18 6M6 6l12 12"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                        />
-                      </svg>
+                      <Icon height="18" icon="heroicons:plus" width="18" />
                     </Button>
-                  )}
-                </div>
-
-                {/* Campos del formulario */}
-                <div className="w-full space-y-4">
-                  {/* Hidden field para ID si existe */}
-                  {isExistingConversion && (
-                    <Controller
-                      control={control}
-                      name={`conversiones.${index}.id`}
-                      render={({ field }) => <input type="hidden" {...field} />}
-                    />
-                  )}
-
-                  {/* Selector de unidad */}
-                  <div className="md:col-span-1">
-                    <Controller
-                      control={control}
-                      name={`conversiones.${index}.unidadOrigenID`}
-                      render={({ field }) => (
-                        <div className="flex gap-2">
-                          <Select
-                            {...field}
-                            isRequired
-                            className="flex-1 w-full"
-                            isLoading={loading}
-                            label="Unidad de Medida"
-                            placeholder="Seleccionar"
-                            selectedKeys={field.value}
-                            //isInvalid={!!errors.conversiones?.[index]?.unidadOrigenID}
-                            //errorMessage={errors.conversiones?.[index]?.unidadOrigenID?.message}
-                            variant="bordered"
-                          >
-                            {unidades.map((unidad) => (
-                              <SelectItem key={unidad.id}>
-                                {`${unidad.nombre} (${unidad.abreviatura})`}
-                              </SelectItem>
-                            ))}
-                          </Select>
-
-                          <Button
-                            isIconOnly
-                            color="success"
-                            title="Crear nueva unidad"
-                            variant="bordered"
-                            onPress={() => setMostrarModal(true)}
-                          >
-                            <svg
-                              className="w-4 h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                d="M12 4v16m8-8H4"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                              />
-                            </svg>
-                          </Button>
-                        </div>
-                      )}
-                    />
-                  </div>
-
-                  {/* Factor de conversión */}
-                  {index > 0 && (
-                    <div>
-                      <Controller
-                        control={control}
-                        name={`conversiones.${index}.factorConversion`}
-                        render={({ field }) => (
-                          <Input
-                            {...field}
-                            isRequired
-                            description="¿Cuántas unidades base contiene?"
-                            label="Factor de Conversión"
-                            min="0.01"
-                            placeholder="1.00"
-                            step="0.01"
-                            type="number"
-                            value={field.value?.toString() || ""}
-                            onChange={(e) =>
-                              field.onChange(parseFloat(e.target.value) || 1)
-                            }
-                            //isInvalid={!!errors.conversiones?.[index]?.factorConversion}
-                            //errorMessage={errors.conversiones?.[index]?.factorConversion?.message}
-                            variant="bordered"
-                          />
-                        )}
-                      />
-                    </div>
-                  )}
-
-                  {/* Precio de venta */}
-                  <div>
-                    <Controller
-                      control={control}
-                      name={`conversiones.${index}.precioVentaUnitario`}
-                      render={({ field }) => (
-                        <Input
-                          {...field}
-                          isRequired
-                          description={
-                            isExistingConversion
-                              ? "Puedes actualizar el precio"
-                              : "Precio para esta unidad"
-                          }
-                          label="Precio de Venta"
-                          min="0"
-                          placeholder="0.00"
-                          startContent={
-                            <span className="text-gray-500 text-sm">Bs.</span>
-                          }
-                          step="0.01"
-                          type="number"
-                          onChange={(e) =>
-                            field.onChange(parseFloat(e.target.value) || 0)
-                          }
-                          //isInvalid={!!errors.conversiones?.[index]?.precioVentaUnitario}
-                          //={errors.conversiones?.[index]?.precioVentaUnitario?.message}
-                          value={field.value?.toString() || ""}
-                          variant="bordered"
-                        />
-                      )}
-                    />
-                  </div>
-                </div>
-
-                {/* Mostrar equivalencia */}
-                {index > 0 && calcularEquivalencia(index) && (
-                  <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <svg
-                        className="w-4 h-4 text-yellow-600"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                        />
-                      </svg>
-                      <span className="text-sm text-yellow-800">
-                        <strong>Equivalencia:</strong>{" "}
-                        {calcularEquivalencia(index)}
-                      </span>
-                    </div>
                   </div>
                 )}
-              </CardBody>
-            </Card>
-          );
-        })}
-      </div>
+              />
 
-      {/* Botón para agregar nueva conversión */}
+              {!esBase && (
+                <Controller
+                  control={control}
+                  name={`conversiones.${index}.factorConversion`}
+                  render={({ field }) => (
+                    <Input
+                      {...field}
+                      isRequired
+                      description="¿Cuántas unidades base trae?"
+                      label="Factor de Conversión"
+                      labelPlacement="outside"
+                      min="0.01"
+                      placeholder="1.00"
+                      step="0.01"
+                      type="number"
+                      value={field.value?.toString() || ""}
+                      variant="bordered"
+                      onChange={(e) =>
+                        field.onChange(parseFloat(e.target.value) || 1)
+                      }
+                    />
+                  )}
+                />
+              )}
+
+              <Controller
+                control={control}
+                name={`conversiones.${index}.precioVentaUnitario`}
+                render={({ field }) => (
+                  <Input
+                    {...field}
+                    isRequired
+                    description={isExistingConversion ? "Puedes actualizar el precio" : "Lo que paga el cliente"}
+                    label="Precio de Venta"
+                    labelPlacement="outside"
+                    min="0"
+                    placeholder="0.00"
+                    startContent={<span className="text-sm text-gray-500">Bs.</span>}
+                    step="0.01"
+                    type="number"
+                    value={field.value?.toString() || ""}
+                    variant="bordered"
+                    onChange={(e) =>
+                      field.onChange(parseFloat(e.target.value) || 0)
+                    }
+                  />
+                )}
+              />
+            </div>
+
+            {!esBase && equivalencia && (
+              <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-white px-3 py-2 text-xs text-gray-600">
+                <span>
+                  <Icon className="mr-1 inline" height="14" icon="heroicons:information-circle" width="14" />
+                  <strong>{equivalencia}</strong>
+                </span>
+                {precio > 0 && factor > 0 && (
+                  <span>· Sale a Bs. {(precio / factor).toFixed(2)} por unidad base</span>
+                )}
+              </p>
+            )}
+          </div>
+        );
+      })}
+
       <Button
-        className="w-full h-16 text-base font-medium border-2 border-dashed"
+        className="w-full border-2 border-dashed"
         color="primary"
-        startContent={
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              d="M12 4v16m8-8H4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-            />
-          </svg>
-        }
+        startContent={<Icon height="18" icon="heroicons:plus" width="18" />}
         variant="bordered"
         onPress={agregarConversion}
       >
-        {isEditMode
-          ? "Agregar nueva unidad de venta"
-          : "Agregar otra unidad de venta"}
+        {isEditMode ? "Agregar nueva unidad de venta" : "Agregar otra unidad de venta"}
       </Button>
 
-      {/* Modal para nueva unidad */}
       <NuevaUnidadModal
         isOpen={mostrarModal}
         onClose={() => setMostrarModal(false)}

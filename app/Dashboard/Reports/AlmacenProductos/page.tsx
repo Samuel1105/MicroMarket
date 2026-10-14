@@ -1,326 +1,431 @@
 "use client";
 
-import { Chip, Spinner } from "@heroui/react";
-import { Icon } from "@iconify/react";
-import React, { useEffect, useMemo, useState } from "react";
+import { Chip } from "@heroui/react";
+import React, { useMemo, useState } from "react";
 
-import { AlmacenData, getWarehouseInventory, ProductoAlmacen } from "@/actions/reportes/reporte-almacen";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
-import BaseChart from "@/components/dashboard/BaseChart";
-import ChartCard from "@/components/reports/ChartCard";
-import { COLORS, columnasOption, hBarOption } from "@/components/reports/chart-options";
-import Insights, { Insight } from "@/components/reports/Insights";
-import Kpi from "@/components/reports/Kpi";
-import ReportHeader from "@/components/reports/ReportHeader";
-import SplitBar from "@/components/reports/SplitBar";
+import { getWarehouseInventory, ProductoAlmacen } from "@/actions/reportes/reporte-almacen";
+import ChartPanel from "@/components/reports/kit/ChartPanel";
+import FilterBar, { FilterDim, Filters } from "@/components/reports/kit/FilterBar";
+import KpiAnimado from "@/components/reports/kit/KpiAnimado";
+import PaginaReporte from "@/components/reports/kit/PaginaReporte";
+import Segmented from "@/components/reports/kit/Segmented";
+import TablaBuscable, { Columna } from "@/components/reports/kit/TablaBuscable";
+import { mapaColores } from "@/components/reports/kit/colores";
+import { base, legendTop, tipHtml, tooltipBase, valueAxis } from "@/components/reports/kit/chart-kit";
+import { fechaEs } from "@/components/reports/kit/fechas";
+import { opcionDona } from "@/components/reports/kit/opciones";
+import { useReporte } from "@/components/reports/kit/useReporte";
 import { bs, num } from "@/src/utils/report-format";
 
-const dias = (n: number) => `${num(n, n < 10 ? 1 : 0)} días`;
+type Estado = "sin" | "bajo" | "ok";
+const ESTADO: Record<Estado, { label: string; chip: "danger" | "warning" | "success"; orden: number }> = {
+  sin: { label: "Sin stock", chip: "danger", orden: 0 },
+  bajo: { label: "Poco stock", chip: "warning", orden: 1 },
+  ok: { label: "Bien", chip: "success", orden: 2 },
+};
 
-function buildInsights(d: AlmacenData): Insight[] {
-  const t = d.totales;
-  const items: Insight[] = [];
-
-  if (d.productos.every((p) => p.total <= 0)) {
-    return [{ tone: "warn", text: "No hay mercadería en el almacén ni en el estante." }];
-  }
-
-  const reponer = d.productos.filter((p) => p.estado !== "ok" && p.reponer > 0);
-
-  if (reponer.length > 0) {
-    const criticos = reponer.filter((p) => p.cobertura !== null && p.cobertura < 7);
-
-    items.push({
-      tone: "warn",
-      text: `${reponer.length} ${reponer.length === 1 ? "producto está" : "productos están"} por debajo de su mínimo${
-        criticos.length ? `; ${criticos.length} se acabarían en menos de una semana al ritmo actual` : ""
-      }. Revisa la lista “Qué comprar”.`,
-    });
-  }
-
-  if (t.valorVencidoSinRetirar > 0) {
-    items.push({
-      tone: "warn",
-      text: `Hay mercadería vencida por ${bs(t.valorVencidoSinRetirar)} que sigue registrada como stock. Retírala físicamente: ya no se puede vender ni pasar al estante.`,
-    });
-  }
-
-  if (t.valorPorVencer > 0) {
-    items.push({
-      tone: "warn",
-      text: `${bs(t.valorPorVencer)} de mercadería vence en los próximos 30 días. Ponla en el estante primero o haz una promoción para no perderla.`,
-    });
-  }
-
-  if (t.valorParado > 0) {
-    items.push({
-      tone: "info",
-      text: `${bs(t.valorParado)} están en productos que no vendiste en ${d.diasRitmo} días. No compres más de esos hasta que se muevan.`,
-    });
-  }
-
-  if (items.length === 0) {
-    items.push({ tone: "good", text: "El almacén está sano: nada por vencer, nada parado y ningún producto bajo su mínimo." });
-  }
-
-  return items;
-}
-
-function Fila({ p, d }: { p: ProductoAlmacen; d: AlmacenData }) {
-  const sin = p.estado === "sin";
-  const critico = p.cobertura !== null && p.cobertura < 7;
-
-  return (
-    <div className="rounded-2xl border border-default-200 bg-white shadow-sm p-4 sm:p-5">
-      <div className="flex items-start gap-4">
-        <div
-          className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
-            sin ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600"
-          }`}
-        >
-          <Icon height="22" icon={sin ? "heroicons:archive-box-x-mark" : "heroicons:arrow-trending-down"} width="22" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="font-semibold">{p.nombre}</p>
-            <Chip color="secondary" size="sm" variant="flat">
-              {p.categoria}
-            </Chip>
-            <Chip color={sin ? "danger" : "warning"} size="sm" variant="flat">
-              {sin ? "Sin stock" : critico ? "Se acaba pronto" : "Bajo el mínimo"}
-            </Chip>
-          </div>
-          <p className="text-sm text-gray-700 mt-1.5">
-            Tienes {num(p.total, p.total % 1 ? 1 : 0)} {p.unidadBase} (almacén {num(p.almacen, p.almacen % 1 ? 1 : 0)} ·
-            estante {num(p.estante, p.estante % 1 ? 1 : 0)}) y tu mínimo es {num(p.minimo, p.minimo % 1 ? 1 : 0)}.
-            {p.cobertura !== null && ` Al ritmo actual alcanza para ${dias(p.cobertura)}.`}
-            {p.cobertura === null && !sin && ` No se vendió en los últimos ${d.diasRitmo} días.`}
-          </p>
-          {p.reponer > 0 && (
-            <p className="text-sm text-secondary-800 bg-secondary-50 rounded-lg px-3 py-2 mt-2">
-              <b>Qué comprar:</b> unas {num(p.reponer)} {p.unidadBase}
-              {p.costoUnidad > 0 && <> (≈ {bs(p.reponer * p.costoUnidad, 0)})</>} para cubrir {d.diasObjetivo} días de
-              venta.
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+const cant = (n: number) => num(n, n % 1 ? 1 : 0);
+const cargar = async () => getWarehouseInventory();
 
 export default function WarehouseInventoryReport() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<AlmacenData | null>(null);
+  const { data, loading, error } = useReporte(cargar, { start: "", end: "" });
+  const [filtros, setFiltros] = useState<Filters>({});
+  const [topN, setTopN] = useState<10 | 20>(10);
 
-  useEffect(() => {
-    getWarehouseInventory()
-      .then((res) => {
-        if (res.success && res.data) setData(res.data);
-        else setError(res.error || "No se pudo cargar el reporte");
-      })
-      .catch(() => setError("No se pudo conectar con el servidor"))
-      .finally(() => setLoading(false));
-  }, []);
-
-  const insights = useMemo(() => (data ? buildInsights(data) : []), [data]);
-
-  const porCategoria = useMemo(
-    () => (data ? hBarOption(data.categorias.map((c) => ({ name: c.categoria, value: c.valor })), { color: COLORS.ventas }) : null),
-    [data],
-  );
-
-  const semanas = useMemo(
+  const productos = useMemo(() => data?.productos ?? [], [data]);
+  const filtrados = useMemo(
     () =>
-      data
-        ? columnasOption(
-            data.vencimientosSemana.map((s) => ({
-              name: s.etiqueta,
-              value: s.valor,
-              detail: s.lotes ? `${s.lotes} ${s.lotes === 1 ? "lote" : "lotes"}` : undefined,
-            })),
-            { color: COLORS.compras },
-          )
-        : null,
-    [data],
+      productos.filter(
+        (p) =>
+          (!filtros.categoria?.length || filtros.categoria.includes(p.categoria)) &&
+          (!filtros.estado?.length || filtros.estado.includes(p.estado)) &&
+          (!filtros.producto?.length || filtros.producto.includes(p.nombre)),
+      ),
+    [productos, filtros],
+  );
+  const colorCat = useMemo(() => mapaColores(productos.map((p) => p.categoria)), [productos]);
+
+  const dims = useMemo<FilterDim[]>(
+    () => [
+      { key: "estado", label: "Estado", icon: "heroicons:signal", options: ["sin", "bajo", "ok"], show: (v) => ESTADO[v as Estado].label },
+      { key: "categoria", label: "Categoría", icon: "heroicons:tag", options: Array.from(new Set(productos.map((p) => p.categoria))).sort((a, b) => a.localeCompare(b)) },
+      { key: "producto", label: "Producto", icon: "heroicons:cube", options: productos.map((p) => p.nombre).sort((a, b) => a.localeCompare(b)) },
+    ],
+    [productos],
   );
 
-  const cobertura = useMemo(() => {
-    if (!data) return null;
-    const filas = data.productos
-      .filter((p) => p.cobertura !== null && p.total > 0)
-      .sort((a, b) => a.cobertura! - b.cobertura!)
-      .slice(0, 10)
-      .map((p) => ({ name: p.nombre, value: p.cobertura! }));
+  const alternar = (clave: string, valor: string) =>
+    setFiltros((f) => {
+      const actual = f[clave] ?? [];
+      const n = { ...f };
+      const lista = actual.includes(valor) ? actual.filter((x) => x !== valor) : [...actual, valor];
 
-    return filas.length ? hBarOption(filas, { color: COLORS.traslado, format: dias }) : null;
-  }, [data]);
+      if (lista.length) n[clave] = lista;
+      else delete n[clave];
 
-  const parados = useMemo(() => data?.productos.filter((p) => p.parado) ?? [], [data]);
-  const aReponer = useMemo(() => data?.productos.filter((p) => p.estado !== "ok" && p.reponer > 0) ?? [], [data]);
-  const hayStock = data ? data.totales.productosConStock > 0 : false;
-  const hayVencimientos = data ? data.vencimientosSemana.some((s) => s.valor > 0) : false;
+      return n;
+    });
+
+  // ── Cifras ──
+  const valorTotal = filtrados.reduce((s, p) => s + p.valor, 0);
+  const sinStock = filtrados.filter((p) => p.estado === "sin").length;
+  const bajo = filtrados.filter((p) => p.estado === "bajo").length;
+  const lotes = useMemo(() => filtrados.flatMap((p) => p.lotes.map((l) => ({ ...l, producto: p.nombre, unidad: p.unidadBase }))), [filtrados]);
+  // Valor = unidades que tienes × costo promedio de compra de cada unidad
+  const valorPorVencer = lotes.filter((l) => l.diasParaVencer !== null && l.diasParaVencer >= 0 && l.diasParaVencer <= 30).reduce((s, l) => s + l.valor, 0);
+  const vencidosSinRetirar = lotes.filter((l) => l.diasParaVencer !== null && l.diasParaVencer < 0);
+  const valorParado = filtrados.filter((p) => p.parado).reduce((s, p) => s + p.valor, 0);
+
+  // ── Gráfico 1: stock vs mínimo (lo más urgente primero) ──
+  const urgentes = useMemo(
+    () =>
+      [...filtrados]
+        .sort((a, b) => ESTADO[a.estado].orden - ESTADO[b.estado].orden || (a.cobertura ?? 999) - (b.cobertura ?? 999) || a.total / (a.minimo || 1) - b.total / (b.minimo || 1))
+        .slice(0, topN),
+    [filtrados, topN],
+  );
+
+  const opcionStock = useMemo(
+    () => ({
+      ...base,
+      grid: { left: 4, right: 24, top: 40, bottom: 4, containLabel: true },
+      legend: { ...legendTop, data: ["En el almacén", "En el estante", "Stock mínimo"] },
+      tooltip: {
+        ...tooltipBase,
+        trigger: "axis",
+        axisPointer: { type: "shadow", shadowStyle: { color: "rgba(11,58,85,.06)" } },
+        formatter: (ps: any[]) => {
+          const p = urgentes.find((x) => x.nombre === ps[0].axisValue);
+
+          return p
+            ? tipHtml(
+                p.nombre,
+                [
+                  { color: "#2a78d6", name: "En el almacén", value: `${cant(p.almacen)} ${p.unidadBase}` },
+                  { color: "#1baf7a", name: "En el estante", value: `${cant(p.estante)} ${p.unidadBase}` },
+                  { color: "#e34948", name: "Stock mínimo", value: `${cant(p.minimo)} ${p.unidadBase}` },
+                ],
+                ESTADO[p.estado].label + (p.reponer ? ` · conviene comprar ${cant(p.reponer)} ${p.unidadBase}` : ""),
+              )
+            : "";
+        },
+      },
+      xAxis: valueAxis,
+      yAxis: { type: "category", inverse: true, data: urgentes.map((p) => p.nombre), axisTick: { show: false }, axisLine: { lineStyle: { color: "#e2e8f0" } }, axisLabel: { color: "#334155", fontSize: 12, width: 150, overflow: "truncate" } },
+      series: [
+        {
+          name: "En el almacén",
+          type: "bar",
+          stack: "s",
+          barMaxWidth: 24,
+          itemStyle: { color: "#2a78d6", borderColor: "#fff", borderWidth: 1.5, borderRadius: 3 },
+          data: urgentes.map((p) => ({ value: p.almacen, itemStyle: { opacity: filtros.producto?.length && !filtros.producto.includes(p.nombre) ? 0.3 : 1 } })),
+        },
+        {
+          name: "En el estante",
+          type: "bar",
+          stack: "s",
+          barMaxWidth: 24,
+          itemStyle: { color: "#1baf7a", borderColor: "#fff", borderWidth: 1.5, borderRadius: 3 },
+          data: urgentes.map((p) => ({ value: p.estante, itemStyle: { opacity: filtros.producto?.length && !filtros.producto.includes(p.nombre) ? 0.3 : 1 } })),
+        },
+        {
+          name: "Stock mínimo",
+          type: "scatter",
+          symbol: "rect",
+          symbolSize: [4, 30],
+          z: 10,
+          itemStyle: { color: "#e34948" },
+          data: urgentes.map((p) => [p.minimo, p.nombre]),
+        },
+      ],
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [urgentes, filtros.producto],
+  );
+
+  // ── Gráfico 2: cuántos días alcanza ──
+  const conRitmo = useMemo(() => [...filtrados].filter((p) => p.cobertura !== null && p.total > 0).sort((a, b) => a.cobertura! - b.cobertura!).slice(0, topN), [filtrados, topN]);
+  const colorDias = (d: number) => (d < 7 ? "#e34948" : d < 15 ? "#eda100" : "#1baf7a");
+  const opcionDias = useMemo(
+    () => ({
+      ...base,
+      grid: { left: 4, right: 56, top: 12, bottom: 4, containLabel: true },
+      tooltip: {
+        ...tooltipBase,
+        trigger: "axis",
+        axisPointer: { type: "shadow", shadowStyle: { color: "rgba(11,58,85,.06)" } },
+        formatter: (ps: any[]) => {
+          const p = conRitmo.find((x) => x.nombre === ps[0].axisValue);
+
+          return p
+            ? tipHtml(p.nombre, [{ color: colorDias(p.cobertura!), name: "Alcanza para", value: `${num(p.cobertura!, 0)} días` }], `Se vende ${num(p.ventaDiaria, 1)} ${p.unidadBase} por día · hay ${cant(p.total)} ${p.unidadBase}`)
+            : "";
+        },
+      },
+      xAxis: { ...valueAxis, axisLabel: { ...valueAxis.axisLabel, formatter: (v: number) => `${v} d` } },
+      yAxis: { type: "category", inverse: true, data: conRitmo.map((p) => p.nombre), axisTick: { show: false }, axisLine: { lineStyle: { color: "#e2e8f0" } }, axisLabel: { color: "#334155", fontSize: 12, width: 150, overflow: "truncate" } },
+      series: [
+        {
+          type: "bar",
+          barMaxWidth: 24,
+          label: { show: true, position: "right", color: "#0f172a", fontSize: 11, fontWeight: 600, formatter: (p: any) => `${Math.round(p.value)} días` },
+          data: conRitmo.map((p) => ({
+            value: Math.min(p.cobertura!, 90),
+            itemStyle: { color: colorDias(p.cobertura!), borderRadius: [0, 8, 8, 0], opacity: filtros.producto?.length && !filtros.producto.includes(p.nombre) ? 0.3 : 1 },
+          })),
+        },
+      ],
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [conRitmo, filtros.producto],
+  );
+
+  // ── Gráfico 3: valor por categoría ──
+  const porCategoria = useMemo(() => {
+    const m = new Map<string, number>();
+
+    filtrados.filter((p) => p.total > 0).forEach((p) => m.set(p.categoria, (m.get(p.categoria) ?? 0) + p.valor));
+
+    return Array.from(m.entries())
+      .map(([nombre, valor]) => ({ nombre, valor }))
+      .sort((a, b) => b.valor - a.valor);
+  }, [filtrados]);
+  const opcionCat = useMemo(
+    () =>
+      opcionDona({
+        datos: porCategoria.map((c) => ({ name: c.nombre, value: c.valor, color: colorCat(c.nombre) })),
+        centro: { texto: bs(valorTotal, 0), sub: "en mercadería" },
+        fmt: (n) => bs(n, 0),
+        seleccion: filtros.categoria ?? [],
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [porCategoria, filtros.categoria],
+  );
+
+  // ── Lo que vence: lotes ya vencidos y los que vencen en los próximos 60 días (lo más urgente primero) ──
+  // vence en N días = fecha de vencimiento del lote − hoy · valor = unidades que quedan × costo promedio de la unidad
+  const porVencer = useMemo(
+    () => lotes.filter((l) => l.diasParaVencer !== null && l.diasParaVencer <= 60).sort((a, b) => a.diasParaVencer! - b.diasParaVencer!),
+    [lotes],
+  );
+  const textoDias = (d: number) => (d < 0 ? `Venció hace ${-d} ${d === -1 ? "día" : "días"}` : d === 0 ? "Vence hoy" : d === 1 ? "Vence mañana" : `Vence en ${d} días`);
+  const chipDias = (d: number): "danger" | "warning" | "default" => (d <= 7 ? "danger" : d <= 30 ? "warning" : "default");
+
+  const columnas: Columna<ProductoAlmacen>[] = [
+    { clave: "nombre", titulo: "Producto", valor: (p) => p.nombre, celda: (p) => <span className="font-semibold">{p.nombre}</span> },
+    {
+      clave: "categoria",
+      titulo: "Categoría",
+      valor: (p) => p.categoria,
+      celda: (p) => (
+        <span className="inline-flex items-center gap-1.5">
+          <i className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: colorCat(p.categoria) }} />
+          {p.categoria}
+        </span>
+      ),
+    },
+    { clave: "almacen", titulo: "Almacén", alinear: "der", valor: (p) => p.almacen, celda: (p) => `${cant(p.almacen)} ${p.unidadBase}` },
+    { clave: "estante", titulo: "Estante", alinear: "der", valor: (p) => p.estante, celda: (p) => `${cant(p.estante)} ${p.unidadBase}` },
+    { clave: "total", titulo: "Total", alinear: "der", valor: (p) => p.total, celda: (p) => <b>{`${cant(p.total)} ${p.unidadBase}`}</b> },
+    { clave: "minimo", titulo: "Mínimo", alinear: "der", valor: (p) => p.minimo, celda: (p) => cant(p.minimo) },
+    {
+      clave: "dias",
+      titulo: "Alcanza",
+      alinear: "der",
+      valor: (p) => p.cobertura ?? 9999,
+      celda: (p) =>
+        p.cobertura === null ? (
+          <span className="text-gray-400">{p.parado ? "no se vende" : "—"}</span>
+        ) : (
+          <span
+            className="block leading-tight"
+            title={`Tienes ${cant(p.total)} ${p.unidadBase} y se venden ${num(p.ventaDiaria, 2)} ${p.unidadBase} por día (promedio de los últimos ${data?.diasRitmo ?? 30} días). Entonces: ${cant(p.total)} ÷ ${num(p.ventaDiaria, 2)} = ${num(p.cobertura, 0)} días.`}
+          >
+            <span className={p.cobertura < 7 ? "text-red-600 font-semibold" : ""}>{`${num(p.cobertura, 0)} días`}</span>
+            <span className="block text-[11px] text-gray-400">{`vende ${num(p.ventaDiaria, 1)} ${p.unidadBase}/día`}</span>
+          </span>
+        ),
+    },
+    {
+      clave: "estado",
+      titulo: "Estado",
+      valor: (p) => ESTADO[p.estado].label,
+      celda: (p) => (
+        <Chip color={ESTADO[p.estado].chip} size="sm" variant="flat">
+          {ESTADO[p.estado].label}
+        </Chip>
+      ),
+    },
+    { clave: "reponer", titulo: "Conviene comprar", alinear: "der", valor: (p) => p.reponer, celda: (p) =>
+        p.reponer ? (
+          <span
+            className="block leading-tight"
+            title={`Conviene tener al menos ${cant(Math.max(p.minimo, p.ventaDiaria * (data?.diasObjetivo ?? 15)))} ${p.unidadBase} (el mayor entre tu stock mínimo y lo que vendes en ${data?.diasObjetivo ?? 15} días). Tienes ${cant(p.total)}, faltan ${cant(p.reponer)}.`}
+          >
+            <b>{`${cant(p.reponer)} ${p.unidadBase}`}</b>
+            <span className="block text-[11px] text-gray-400">{`para tener ${cant(p.total + p.reponer)}`}</span>
+          </span>
+        ) : (
+          <span className="text-gray-400">—</span>
+        ),
+    },
+    { clave: "valor", titulo: "Lo que te costó", alinear: "der", valor: (p) => p.valor, celda: (p) => bs(p.valor, 0) },
+  ];
+
+  const hoy = data?.hoy ?? "";
 
   return (
-    <ProtectedRoute allowedRoles={[1, 4]}>
-      <div className="p-4 md:p-8 space-y-5">
-        <ReportHeader
-          crumb="Almacén de productos"
-          question="¿Cuánto tengo, cuánto me dura, qué se me va a vencer y qué debo comprar?"
-          snapshotNote="Es una foto de hoy, por eso no tiene rango de fechas. Los valores usan el costo promedio de compra; el ritmo de venta sale de los últimos 30 días."
-          title="Almacén de productos"
-        />
+    <PaginaReporte
+      cargando={loading}
+      crumb="Almacén de productos"
+      error={error}
+      listo={!!data}
+      notaSinRango={`Foto de hoy${hoy ? ` (${fechaEs(hoy)})` : ""}: lo que hay ahora en el almacén y en el estante, y a qué ritmo se vende (últimos ${data?.diasRitmo ?? 30} días).`}
+      pregunta="¿Qué hay, qué se está acabando y qué conviene comprar?"
+      roles={[1, 4]}
+      titulo="Almacén de productos"
+    >
+      {data && (
+        <>
+          <FilterBar dims={dims} value={filtros} onChange={setFiltros}>
+            <span className="text-xs text-gray-500 hidden sm:inline">Mostrar</span>
+            <Segmented
+              label="Cantidad a mostrar"
+              options={[
+                { value: 10, label: "10 productos" },
+                { value: 20, label: "20 productos" },
+              ]}
+              value={topN}
+              onChange={setTopN}
+            />
+          </FilterBar>
 
-        {error && <div className="rounded-2xl border border-red-200 bg-red-50 text-red-700 text-sm p-4">{error}</div>}
-
-        {loading ? (
-          <div className="flex justify-center py-24">
-            <Spinner label="Calculando..." size="lg" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+            <KpiAnimado
+              definition="Lo que te costó la mercadería que tienes guardada hoy (en el almacén y en el estante). No es lo que cobrarás al venderla."
+              formato={(n) => bs(n, 0)}
+              hint={`${filtrados.filter((p) => p.total > 0).length} productos con stock`}
+              icon="heroicons:banknotes"
+              label="Valor del stock"
+              valor={valorTotal}
+            />
+            <KpiAnimado
+              definition="Productos que ya no tienen nada ni en el almacén ni en el estante."
+              formato={(n) => String(Math.round(n))}
+              hint="hay que comprar"
+              icon="heroicons:x-circle"
+              label="Sin stock"
+              tone={sinStock ? "danger" : "success"}
+              valor={sinStock}
+            />
+            <KpiAnimado
+              definition="Productos que tienen menos que su stock mínimo."
+              formato={(n) => String(Math.round(n))}
+              hint="por debajo del mínimo"
+              icon="heroicons:arrow-trending-down"
+              label="Poco stock"
+              tone={bajo ? "danger" : "success"}
+              valor={bajo}
+            />
+            <KpiAnimado
+              definition="Lo que te costó la mercadería que vence en los próximos 30 días y todavía no se vendió."
+              formato={(n) => bs(n, 0)}
+              hint={vencidosSinRetirar.length ? `y ${vencidosSinRetirar.length} lotes ya vencidos sin retirar` : "vence en 30 días o menos"}
+              icon="heroicons:clock"
+              label="Por vencer"
+              tone={valorPorVencer || vencidosSinRetirar.length ? "danger" : "success"}
+              valor={valorPorVencer}
+            />
+            <KpiAnimado
+              definition="Dinero guardado en productos con stock que no se vendieron nada en los últimos 30 días."
+              formato={(n) => bs(n, 0)}
+              hint="productos que no se mueven"
+              icon="heroicons:pause-circle"
+              label="Parada"
+              tone={valorParado ? "danger" : "success"}
+              valor={valorParado}
+            />
           </div>
-        ) : (
-          data && (
-            <div className="space-y-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                <Kpi
-                  definition="Lo que te costó la mercadería que todavía tienes (almacén + estante), al costo promedio de compra. Es plata parada en producto."
-                  hint={`${data.totales.productosConStock} productos con stock`}
-                  icon="heroicons:banknotes"
-                  label="Capital en inventario"
-                  value={bs(data.totales.valor)}
-                />
-                <Kpi
-                  definition="Productos cuyo stock (almacén + estante) es menor al mínimo que definiste en cada producto."
-                  hint={`${data.totales.sinStock} sin stock · ${data.totales.bajo} bajo el mínimo`}
-                  icon="heroicons:arrow-trending-down"
-                  label="Por reponer"
-                  tone={aReponer.length ? "danger" : "success"}
-                  value={String(data.totales.sinStock + data.totales.bajo)}
-                />
-                <Kpi
-                  definition="Costo de la mercadería que vence en los próximos 30 días y aún no se vendió."
-                  hint="Vence en 30 días o menos"
-                  icon="heroicons:clock"
-                  label="En riesgo de vencer"
-                  tone={data.totales.valorPorVencer > 0 ? "danger" : "success"}
-                  value={bs(data.totales.valorPorVencer)}
-                />
-                <Kpi
-                  definition={`Costo del stock de productos que no tuvieron ninguna venta en los últimos ${data.diasRitmo} días.`}
-                  hint={`${parados.length} productos sin movimiento`}
-                  icon="heroicons:pause-circle"
-                  label="Dinero parado"
-                  tone={data.totales.valorParado > 0 ? "secondary" : "success"}
-                  value={bs(data.totales.valorParado)}
-                />
-              </div>
 
-              <Insights items={insights} />
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            <ChartPanel
+              empty={urgentes.length === 0}
+              height={Math.max(320, urgentes.length * 40 + 60)}
+              option={opcionStock}
+              question="¿Qué se está acabando? La marca roja es el stock mínimo que definiste en cada producto: si la barra no llega, hay que comprar."
+              stale={loading}
+              table={{
+                head: ["Producto", "Almacén", "Estante", "Mínimo", "Estado"],
+                rows: urgentes.map((p) => [p.nombre, cant(p.almacen), cant(p.estante), cant(p.minimo), ESTADO[p.estado].label]),
+              }}
+              title="Stock frente al mínimo"
+              onClick={(p) => p.seriesType === "bar" && alternar("producto", String(p.name))}
+            />
+            <ChartPanel
+              empty={conRitmo.length === 0}
+              emptyText="Ninguno de estos productos se vendió en los últimos 30 días."
+              height={Math.max(320, conRitmo.length * 40 + 60)}
+              option={opcionDias}
+              question="¿Para cuántos días alcanza lo que hay, al ritmo de venta actual? Rojo: menos de 7 días · amarillo: menos de 15."
+              stale={loading}
+              table={{ head: ["Producto", "Alcanza", "Se vende por día"], rows: conRitmo.map((p) => [p.nombre, `${num(p.cobertura!, 0)} días`, `${num(p.ventaDiaria, 1)} ${p.unidadBase}`]) }}
+              title="¿Cuántos días alcanza?"
+              onClick={(p) => alternar("producto", String(p.name))}
+            />
+          </div>
 
-              <div className="rounded-2xl bg-white border border-default-200 shadow-sm p-5">
-                <h3 className="font-bold text-base">¿Dónde está la mercadería?</h3>
-                <p className="text-xs text-gray-500 mb-4">Lo que ya está listo para vender y lo que sigue en bodega.</p>
-                <SplitBar
-                  remainder={{
-                    label: "Ya en el estante",
-                    value: data.totales.valorEstante,
-                    color: COLORS.ventas,
-                    note: "Listo para vender",
-                  }}
-                  segments={[
-                    {
-                      label: "En el almacén",
-                      value: data.totales.valorAlmacen,
-                      color: COLORS.compras,
-                      note: "Falta pasarlo al estante",
-                    },
-                  ]}
-                  total={data.totales.valor}
-                  totalLabel="Capital en inventario"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                <ChartCard
-                  empty={!hayVencimientos}
-                  emptyText="Nada vence en las próximas 8 semanas."
-                  subtitle="Costo de lo que vence en cada semana. Lo más urgente está a la izquierda"
-                  title="¿Cuándo se me vence?"
-                >
-                  {semanas && <BaseChart height="300px" option={semanas} />}
-                </ChartCard>
-
-                <ChartCard
-                  empty={!cobertura}
-                  emptyText="Todavía no hay ventas para calcular cuánto dura cada producto."
-                  subtitle="Días que alcanza el stock al ritmo de venta de los últimos 30 días. Arriba, los que se acaban primero"
-                  title="¿Cuánto me dura?"
-                >
-                  {cobertura && <BaseChart height="300px" option={cobertura} />}
-                </ChartCard>
-              </div>
-
-              <ChartCard
-                empty={!hayStock}
-                subtitle="Cuánta plata tienes parada en cada categoría"
-                title="Capital por categoría"
-              >
-                {porCategoria && (
-                  <BaseChart height={`${Math.max(180, data.categorias.length * 42 + 20)}px`} option={porCategoria} />
-                )}
-              </ChartCard>
-
-              {aReponer.length > 0 && (
-                <div className="space-y-3">
-                  <div className="px-1">
-                    <h3 className="font-bold text-base">Qué comprar</h3>
-                    <p className="text-xs text-gray-500">
-                      Productos sin stock o bajo su mínimo, del más urgente al menos urgente.
-                    </p>
-                  </div>
-                  {[...aReponer]
-                    .sort((a, b) => (a.cobertura ?? 9999) - (b.cobertura ?? 9999))
-                    .map((p) => (
-                      <Fila key={p.id} d={data} p={p} />
-                    ))}
-                </div>
-              )}
-
-              {data.vencidos.length > 0 && (
-                <div className="space-y-3">
-                  <div className="px-1">
-                    <h3 className="font-bold text-base">Vencido que sigue en el sistema</h3>
-                    <p className="text-xs text-gray-500">Retíralo del almacén o del estante: no se puede vender.</p>
-                  </div>
-                  {data.vencidos.map((v) => (
-                    <div
-                      key={`${v.producto}-${v.lote}`}
-                      className="rounded-2xl border border-red-200 bg-red-50/50 p-4 flex items-center gap-4"
-                    >
-                      <div className="w-11 h-11 rounded-xl bg-red-50 text-red-600 flex items-center justify-center shrink-0">
-                        <Icon height="22" icon="heroicons:no-symbol" width="22" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold">{v.producto}</p>
-                        <p className="text-sm text-gray-600">
-                          Lote {v.lote} · venció el {v.vencio.split("-").reverse().join("/")} · quedan {num(v.unidades, v.unidades % 1 ? 1 : 0)}{" "}
-                          {v.unidadBase}
-                        </p>
-                      </div>
-                      <p className="font-bold text-red-600 tabular-nums">{bs(v.valor)}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <p className="text-xs text-gray-500 px-1">
-                Stock mínimo: se define en cada producto. Cobertura = stock ÷ venta diaria promedio. “Qué comprar” sugiere
-                llegar a {data.diasObjetivo} días de venta (o al mínimo, lo que sea mayor).
-              </p>
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+            <ChartPanel
+              empty={porCategoria.length === 0}
+              height={320}
+              option={opcionCat}
+              question="¿En qué categoría tienes más plata guardada? Clic en un color para filtrar."
+              stale={loading}
+              table={{ head: ["Categoría", "Valor"], rows: porCategoria.map((c) => [c.nombre, bs(c.valor, 0)]) }}
+              title="Dinero en mercadería"
+              onClick={(p) => alternar("categoria", String(p.name))}
+            />
+            <div className="xl:col-span-2">
+              <TablaBuscable
+                clave={(l) => `${l.producto}-${l.numeroLote}`}
+                claseFila={(l) => (l.diasParaVencer! < 0 ? "bg-red-50/50" : l.diasParaVencer! <= 7 ? "bg-amber-50/50" : "")}
+                columnas={[
+                  { clave: "producto", titulo: "Producto", valor: (l) => l.producto, celda: (l) => <span className="font-semibold">{l.producto}</span> },
+                  { clave: "estado", titulo: "Cuándo vence", valor: (l) => l.diasParaVencer ?? 9999, celda: (l) => <Chip color={chipDias(l.diasParaVencer!)} size="sm" variant="flat">{textoDias(l.diasParaVencer!)}</Chip> },
+                  { clave: "fecha", titulo: "Fecha", alinear: "der", valor: (l) => l.vence ?? "", celda: (l) => (l.vence ? fechaEs(l.vence) : "—") },
+                  { clave: "lote", titulo: "Lote", valor: (l) => l.numeroLote },
+                  { clave: "unidades", titulo: "Cuánto queda", alinear: "der", valor: (l) => l.unidades, celda: (l) => <b>{`${cant(l.unidades)} ${l.unidad}`}</b> },
+                  { clave: "valor", titulo: "Costo", alinear: "der", valor: (l) => l.valor, celda: (l) => bs(l.valor, 0) },
+                ]}
+                filas={porVencer}
+                orden={{ clave: "estado", desc: false }}
+                porPagina={6}
+                subtitulo="Lotes que ya vencieron y los que vencen en los próximos 60 días, lo más urgente primero. Véndelos primero; los vencidos retíralos con un ajuste de inventario."
+                titulo="Qué está por vencer"
+                vacio="No hay mercadería vencida ni por vencer en los próximos 60 días."
+                buscar={(l) => `${l.producto} ${l.numeroLote}`}
+              />
             </div>
-          )
-        )}
-      </div>
-    </ProtectedRoute>
+          </div>
+
+          <TablaBuscable
+            clave={(p) => String(p.id)}
+            claseFila={(p) => (p.estado === "sin" ? "bg-red-50/40" : p.estado === "bajo" ? "bg-amber-50/40" : "")}
+            columnas={columnas}
+            filas={filtrados}
+            orden={{ clave: "estado", desc: false }}
+            porPagina={10}
+// Conviene comprar = max(stock mínimo, venta diaria × diasObjetivo) − stock actual · Alcanza = stock ÷ venta diaria (últimos diasRitmo días)
+            subtitulo="Ordenado por lo más urgente. «Conviene comprar» es una sugerencia según tu stock mínimo y lo que vendes; «Alcanza» son los días que dura lo que tienes al ritmo en que vendes (pasa el mouse sobre los días para ver cómo se calculó)."
+
+            titulo="Qué hay y qué conviene comprar"
+            buscar={(p) => `${p.nombre} ${p.categoria} ${ESTADO[p.estado].label}`}
+          />
+
+          <p className="text-xs text-gray-500 px-1">«Valor» y «Costo» son lo que te costó la mercadería que tienes guardada, no lo que cobrarás al venderla.</p>
+        </>
+      )}
+    </PaginaReporte>
   );
 }

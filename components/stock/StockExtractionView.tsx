@@ -1,5 +1,5 @@
 "use client"
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Card, CardBody, CardHeader, Button, Select, SelectItem,
   Input, Chip, Spinner, Divider
@@ -78,6 +78,9 @@ export default function StockExtractionView() {
   const [precioVenta, setPrecioVenta] = useState<number>(0);
   const router = useRouter()
   const {user} = useAuth()
+  // Si se llegó desde un aviso ("?producto=ID"): el producto del aviso, para abrir su lote de una vez
+  const [desdeAviso, setDesdeAviso] = useState<{ nombre: string; hayStock: boolean } | null>(null);
+  const avisoAtendido = useRef(false);
 
   useEffect(() => {
     loadAvailableStock();
@@ -107,6 +110,38 @@ export default function StockExtractionView() {
       return new Date(a.fechaVencimiento).getTime() - new Date(b.fechaVencimiento).getTime();
     });
   }, [stockDisponible]);
+
+  // Desde un aviso: se filtra la lista a ese producto y se abre su lote que vence primero, con la unidad más pequeña elegida
+  useEffect(() => {
+    if (isLoading || avisoAtendido.current) return;
+    const id = Number(new URLSearchParams(window.location.search).get('producto'));
+
+    if (!id) return;
+    avisoAtendido.current = true;
+
+    const lotes = stockOrdenado.filter(s => s.producto.id === id);
+    const lote = lotes.find(s => { const d = getDiasParaVencer(s.fechaVencimiento); return d === null || d >= 0; });
+
+    if (!lote) {
+      setDesdeAviso({ nombre: lotes[0]?.producto.nombre ?? 'El producto del aviso', hayStock: false });
+      return;
+    }
+
+    const unidad = [...lote.unidadesDisponibles].sort((a, b) => a.factor - b.factor)[0] ?? null;
+
+    setSearchTerm(lote.producto.nombre);
+    setSelectedLote(lote);
+    setSelectedUnidad(unidad);
+    setPrecioVenta(unidad?.precioVenta ?? 0);
+    setCantidad(1);
+    setDesdeAviso({ nombre: lote.producto.nombre, hayStock: true });
+    setTimeout(() => {
+      const campo = document.getElementById('extraer-cantidad') as HTMLInputElement | null;
+
+      campo?.focus();
+      campo?.select();
+    }, 400);
+  }, [isLoading, stockOrdenado]);
 
   const stockFiltrado = useMemo(() => {
     if (!searchTerm.trim()) return stockOrdenado;
@@ -297,6 +332,22 @@ export default function StockExtractionView() {
         </p>
       </div>
 
+      {desdeAviso && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-900">
+          <Icon icon="mdi:bell-ring-outline" width="20" height="20" className="shrink-0 text-primary-600" />
+          <span className="flex-1 min-w-[220px]">
+            {desdeAviso.hayStock ? (
+              <>Aviso del cajero: sacar <b>{desdeAviso.nombre}</b> al estante. Ya abrí su lote que vence primero: escribe la cantidad y, si quieres, los códigos de barras.</>
+            ) : (
+              <><b>{desdeAviso.nombre}</b> ya no tiene stock disponible en el almacén. Avisa a Compras para que lo pida.</>
+            )}
+          </span>
+          <Button size="sm" variant="flat" onPress={() => { setSearchTerm(''); setDesdeAviso(null); }}>
+            Ver todos los productos
+          </Button>
+        </div>
+      )}
+
       {lotesVencidos > 0 && (
         <div className="flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">
           <Icon icon="mdi:cancel" width="20" height="20" className="shrink-0 mt-0.5" />
@@ -395,6 +446,7 @@ export default function StockExtractionView() {
                       </Select>
 
                       <Input
+                        id="extraer-cantidad"
                         type="number"
                         label="Cantidad"
                         placeholder="0"

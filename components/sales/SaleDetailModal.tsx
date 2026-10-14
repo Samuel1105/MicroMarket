@@ -52,14 +52,9 @@ export interface Venta {
   detalles: DetalleVenta[];
 }
 
-export function getMetodoPago(metodo: number): { label: string; color: "primary" | "success" | "warning" } {
-  const metodos: Record<number, { label: string; color: "primary" | "success" | "warning" }> = {
-    1: { label: "Efectivo", color: "success" },
-    2: { label: "Tarjeta", color: "primary" },
-    3: { label: "Transferencia", color: "warning" },
-  };
-
-  return metodos[metodo] || { label: "Desconocido", color: "primary" };
+// El sistema solo cobra en efectivo (el documento no contempla otras formas de pago): sin importar lo que traiga la base, se muestra Efectivo
+export function getMetodoPago(_metodo?: number): { label: string; color: "primary" | "success" | "warning" } {
+  return { label: "Efectivo", color: "success" };
 }
 
 export default function SaleDetailModal({
