@@ -118,7 +118,7 @@ export default function InventoryMovementsView() {
     () => ({
       entrada: filtered.filter((m) => m.tipo === "entrada" && !m.anulado).length,
       traslado: filtered.filter((m) => m.tipo === "traslado").length,
-      salida: filtered.filter((m) => m.tipo === "salida").length,
+      salida: filtered.filter((m) => m.tipo === "salida" && !m.anulado).length,
       ajuste: filtered.filter((m) => m.tipo === "ajuste").length,
     }),
     [filtered],
@@ -273,7 +273,7 @@ export default function InventoryMovementsView() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold truncate">{m.producto}</p>
                         <Chip color={m.anulado ? "default" : cfg.chip} size="sm" variant="flat">
-                          {m.anulado ? "Ingreso anulado" : cfg.label}
+                          {m.anulado ? (m.tipo === "entrada" ? "Ingreso anulado" : "Venta anulada") : cfg.label}
                         </Chip>
                       </div>
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 mt-1 text-xs text-gray-500">
@@ -330,6 +330,11 @@ export default function InventoryMovementsView() {
                         {!m.referencia && !m.lote && !m.ajuste && <span>{cfg.hint}</span>}
                       </div>
                       {m.ajuste?.comentario && <p className="text-xs text-gray-500 mt-1">“{m.ajuste.comentario}”</p>}
+                      {m.anulado && m.tipo === "salida" && (
+                        <p className="mt-1 text-xs font-medium text-red-600">
+                          Venta anulada{m.anulacion ? ` por ${m.anulacion.usuario} · ${m.anulacion.motivo}` : ""}: el producto volvió al estante.
+                        </p>
+                      )}
                     </div>
 
                     <div className="text-right shrink-0">

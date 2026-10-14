@@ -175,7 +175,11 @@ export default function MovimientosDetalleModal({ tipo, items, rangoTexto, onClo
                                 {m.contraparte && <span> · {m.contraparte}</span>}
                                 {m.codigoBarras && <span className="block font-mono">{m.codigoBarras}</span>}
                                 {!m.referencia && !m.contraparte && (m.detalle ?? "Del almacén al estante")}
-                                {m.anulado && <span className="block">Compra anulada</span>}
+                                {m.anulado && (
+                                  <span className="block">
+                                    {m.tipo === "entrada" ? "Compra anulada" : `Venta anulada${m.anulacion ? ` por ${m.anulacion.usuario} · ${m.anulacion.motivo}` : ""}: el producto volvió al estante`}
+                                  </span>
+                                )}
                               </>
                             )}
                           </td>

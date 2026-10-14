@@ -1,5 +1,6 @@
 "use server";
-import { MOV_INGRESO_ANULADO } from "@/src/lib/anulaciones";
+import { ANULACION_VENTA, ESTADO_ACTIVO, ESTADO_ANULADO, MOV_INGRESO_ANULADO } from "@/src/lib/anulaciones";
+import { cargarAnulaciones } from "@/src/lib/anulaciones-datos";
 import { prisma } from "@/src/lib/prisma";
 
 export type MovementType = "entrada" | "traslado" | "salida" | "ajuste";
@@ -26,8 +27,10 @@ export type InventoryMovement = {
   unidadNombre: string;
   /** Observación del movimiento (ajustes y traslados) */
   detalle: string | null;
-  /** true si es el ingreso de una compra que se anuló (queda en el historial pero ya no suma) */
+  /** true si es el ingreso de una compra anulada o una venta anulada (queda en el historial, tachado, pero ya no suma) */
   anulado?: boolean;
+  /** Quién, cuándo y por qué se anuló la venta de esta salida */
+  anulacion?: { usuario: string; motivo: string; fecha: string } | null;
   /** Solo en los ajustes de inventario */
   ajuste?: { ubicacion: "almacen" | "estante"; motivo: string; comentario: string; usuario: string };
 };
@@ -63,7 +66,8 @@ export async function getInventoryMovements() {
         take: LIMITE,
       }),
       prisma.detalleVenta.findMany({
-        where: { Venta: { estado: 1 } },
+        // Las ventas anuladas también se listan (tachadas): el producto volvió al estante y debe quedar rastro de eso
+        where: { Venta: { estado: { in: [ESTADO_ACTIVO, ESTADO_ANULADO] } } },
         select: {
           id: true,
           cantidadVendida: true,
@@ -77,6 +81,8 @@ export async function getInventoryMovements() {
           },
           Venta: {
             select: {
+              id: true,
+              estado: true,
               numeroVenta: true,
               fechaVenta: true,
               usuarioRegistro: true,
@@ -88,6 +94,8 @@ export async function getInventoryMovements() {
         take: LIMITE,
       }),
     ]);
+
+    const anulacionesVenta = await cargarAnulaciones(ANULACION_VENTA, Array.from(new Set(ventas.filter((v) => v.Venta.estado === ESTADO_ANULADO).map((v) => v.Venta.id))));
 
     // Compras referenciadas por los ingresos, para mostrar su número y proveedor
     const compraIds = Array.from(
@@ -177,6 +185,8 @@ export async function getInventoryMovements() {
       data.push({
         id: `venta-${v.id}`,
         tipo: "salida",
+        anulado: v.Venta.estado === ESTADO_ANULADO,
+        anulacion: v.Venta.estado === ESTADO_ANULADO ? (anulacionesVenta.get(v.Venta.id) ?? null) : undefined,
         fecha: v.Venta.fechaVenta.toISOString(),
         producto: v.StockVenta.Producto.nombre,
         categoria: v.StockVenta.Producto.Categoria.nombre,
