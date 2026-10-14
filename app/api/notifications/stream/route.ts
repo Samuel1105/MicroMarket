@@ -4,11 +4,16 @@ import { prisma } from "@/src/lib/prisma";
 // Conexión abierta larga: nunca se cachea ni se pre-renderiza
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-// En Vercel la conexión se corta al llegar a este límite; el navegador reconecta solo (retry 3 s) y recibe la lista al instante
+// En Vercel la conexión se corta al llegar a este límite; el navegador reconecta solo (retry 1 s) y recibe la lista al instante
 export const maxDuration = 60;
 
-// Mantiene viva la conexión y sirve de red de seguridad si un cambio no llegó por el bus
-const LATIDO_MS = 20000;
+// Mantiene viva la conexión (comentario SSE) para que ningún intermediario la corte
+const LATIDO_MS = 15000;
+// Cada cuánto el servidor revisa la base mientras la conexión está abierta.
+// IMPORTANTE: en Vercel cada acción del servidor corre en OTRA instancia que la conexión SSE, y el "bus" de memoria
+// (notifBus) solo avisa dentro de la MISMA instancia. Por eso, además del bus (que en local es instantáneo), se consulta
+// la base cada pocos segundos: así el aviso llega en ≈ 2–3 s también en Vercel. Solo se envía algo si la lista cambió.
+const SONDEO_MS = 2500;
 
 async function pendientes(rol: number) {
   const filas = await prisma.notificacion.findMany({
@@ -46,8 +51,11 @@ export async function GET(request: Request) {
       let cerrado = false;
       let ultima = "";
 
+      let consultando = false;
+
       const enviarLista = async (forzar = false) => {
-        if (cerrado) return;
+        if (cerrado || consultando) return;
+        consultando = true;
         try {
           const json = JSON.stringify(await pendientes(rol));
 
@@ -58,15 +66,21 @@ export async function GET(request: Request) {
           }
         } catch {
           /* la siguiente vuelta lo reintenta */
+        } finally {
+          consultando = false;
         }
       };
 
       const alCambiar = () => void enviarLista();
       const latido = setInterval(() => {
         if (cerrado) return;
-        controller.enqueue(encoder.encode(`: latido\n\n`));
-        void enviarLista();
+        try {
+          controller.enqueue(encoder.encode(`: latido\n\n`));
+        } catch {
+          /* la conexión ya se cerró */
+        }
       }, LATIDO_MS);
+      const sondeo = setInterval(() => void enviarLista(), SONDEO_MS);
 
       notifBus.on("cambio", alCambiar);
 
@@ -74,6 +88,7 @@ export async function GET(request: Request) {
         if (cerrado) return;
         cerrado = true;
         clearInterval(latido);
+        clearInterval(sondeo);
         notifBus.off("cambio", alCambiar);
         try {
           controller.close();
@@ -83,7 +98,7 @@ export async function GET(request: Request) {
       };
       request.signal.addEventListener("abort", limpiar);
 
-      controller.enqueue(encoder.encode(`retry: 3000\n\n`));
+      controller.enqueue(encoder.encode(`retry: 1000\n\n`));
       await enviarLista(true);
     },
     cancel() {
