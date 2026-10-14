@@ -3,9 +3,8 @@ import nodemailer from 'nodemailer';
 import { render } from "@react-email/components";
 import ProformaEmail from "../email/ProformaEmail";
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
-import fs from 'fs';
-import path from 'path';
 import { getBoliviaTime } from '@/src/utils/date';
+import { LOGO_PROFORMA_BASE64 } from '@/src/lib/logo-proforma';
 
 // Remitente: SMTP_FROM si existe; si no, el usuario SMTP (o el GMAIL_EMAIL de antes)
 const REMITENTE = (process.env.SMTP_FROM || process.env.SMTP_USER || process.env.GMAIL_EMAIL || 'micromercado.anita@gmail.com') as string;
@@ -159,13 +158,9 @@ async function generarPDFConPDFLib({ venta, cliente, items }: EnviarProformaPara
   let y = H - M;
 
   try {
-    const logoPath = path.join(process.cwd(), 'public', 'Image', 'logo-proforma.png');
+    const logo = await pdfDoc.embedPng(Buffer.from(LOGO_PROFORMA_BASE64, 'base64'));
 
-    if (fs.existsSync(logoPath)) {
-      const logo = await pdfDoc.embedPng(Uint8Array.from(fs.readFileSync(logoPath)));
-
-      page.drawImage(logo, { x: M, y: y - 56, width: 56, height: 56 });
-    }
+    page.drawImage(logo, { x: M, y: y - 56, width: 56, height: 56 });
   } catch {
     // sin logo: el encabezado sigue funcionando
   }
